@@ -196,10 +196,10 @@ def style_table(df, width=1000):
     return (df.style.format("{:.2%}")
             .set_properties(**{'color': 'white'})), width
 
-st.set_page_config(page_title= "Investment Performance Tool", 
+st.set_page_config(page_title= "Investor Reporting App", 
                    layout="wide")
 
-st.title('Investment Performance Tool :chart_with_upwards_trend:')
+st.title('Investor Reporting App  :chart_with_upwards_trend:')
 
 sub_title1_cont = st.container()
 sub_title2_cont = st.container()
