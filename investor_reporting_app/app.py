@@ -279,8 +279,8 @@ if choice == 'Daily Price Series':
     fifth_container = st.container(border=True)
     fifth_container.text("Price Chart")
 
-sixth_container = st.container(border=True)
-sixth_container.text("Histogram")
+    sixth_container = st.container(border=True)
+    sixth_container.text("Histogram")
 #---------------------------------- FIRST CONTAINER ----------------------------#
 def create_cumulative_performance_container(performance):
     data = performance.fund_data.ffill().copy()
@@ -456,8 +456,7 @@ if uploaded_file is not None:
             calendar_performance.index = calendar_performance.index.astype(int).astype(str)
             st.dataframe(*style_table(calendar_performance))
         
-        with sixth_container:
-            create_histogram_container(performance_monthly)
+
         
     else:
         #-------------------------- Daily Price Series -------------------------#
@@ -515,12 +514,9 @@ if uploaded_file is not None:
             with fifth_container:
                 fig = create_price_chart_container(performance_daily)
                 st.plotly_chart(fig)
-        else:
-            pass   
-
-        
-        with sixth_container:
-            create_histogram_container(performance_daily)
+          
+            with sixth_container:
+                create_histogram_container(performance_daily)
 
                 
 
