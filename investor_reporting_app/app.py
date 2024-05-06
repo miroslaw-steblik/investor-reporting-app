@@ -1,7 +1,6 @@
 """
 Copyright (C) 2024, Miroslaw Steblik
-
-A copy of the licence is provided with this program. If you are unableto view it, please see https://www.gnu.org/licenses/
+MIT License
 """
 
 
@@ -11,6 +10,12 @@ import numpy as np
 import plotly.express as px
 from dateutil.relativedelta import relativedelta
 from QuantLib import Date, Thirty360 # 30/360 is applied to follow the industry standard for calculating the time period between two dates
+import pdfkit
+
+
+
+#TODO: Add PDF generation functionality
+# fix 10year performance calculation
 
 
 
@@ -35,6 +40,7 @@ def validate_date_existance(date, date_format, data):
     date = pd.to_datetime(date, format=date_format)
     if date not in data.index:
         return True
+
 
    
 
@@ -134,20 +140,21 @@ class DailyPriceSeries():
         self.period_names = {0: '1 year', 1: '3 year', 2: '5 year', 3: '10 year', 4: 'Since Inception'}
 
     def calculate_cumulative_performance(self):
-        daily_fund_data = self.fund_data.asfreq('D').ffill()  # Use daily data
-        since_inception_value = daily_fund_data.loc[self.since_inception_date]
-        monthly_fund_data = self.fund_data.resample('ME').last()  # Use month-end data
-        reporting_date_value = monthly_fund_data.loc[self.reporting_date]
+         
+            daily_fund_data = self.fund_data.asfreq('D').ffill()  # Use daily data
+            since_inception_value = daily_fund_data.loc[self.since_inception_date]
+            monthly_fund_data = self.fund_data.resample('ME').last()  # Use month-end data
+            reporting_date_value = monthly_fund_data.loc[self.reporting_date]
 
-        since_inception_performance = (reporting_date_value / since_inception_value) - 1
-        one_year_performance = (reporting_date_value / monthly_fund_data.loc[self.reporting_date - relativedelta(years=1)]) -1
-        three_year_performance = (reporting_date_value / monthly_fund_data.loc[self.reporting_date - relativedelta(years=3)]) -1
-        five_year_performance = (reporting_date_value / monthly_fund_data.loc[self.reporting_date - relativedelta(years=5)]) -1
-        ten_year_performance = (reporting_date_value / monthly_fund_data.loc[self.reporting_date - relativedelta(years=10)]) -1
-        performance = pd.concat([one_year_performance, three_year_performance, five_year_performance, ten_year_performance, since_inception_performance], axis=1).T
-        performance = performance.rename(index=self.period_names)
-        return performance
-        # tested and working
+            since_inception_performance = (reporting_date_value / since_inception_value) - 1
+            one_year_performance = (reporting_date_value / monthly_fund_data.loc[self.reporting_date - relativedelta(years=1)]) -1
+            three_year_performance = (reporting_date_value / monthly_fund_data.loc[self.reporting_date - relativedelta(years=3)]) -1
+            five_year_performance = (reporting_date_value / monthly_fund_data.loc[self.reporting_date - relativedelta(years=5)]) -1
+            ten_year_performance = (reporting_date_value / monthly_fund_data.loc[self.reporting_date - relativedelta(years=10)]) -1 
+            performance = pd.concat([one_year_performance, three_year_performance, five_year_performance, ten_year_performance, since_inception_performance], axis=1).T
+            performance = performance.rename(index=self.period_names)
+            return performance
+
 
     
     def calculate_annualized_performance(self):
@@ -208,6 +215,8 @@ top_left_column, top_right_column = st.columns((2),gap="small")
 bottom_left_column, bottom_right_column = st.columns((2),gap="small")
   
 
+chart_column1, chart_column2, = st.columns((2),gap="small")
+chart_column3, chart_column4 = st.columns((2),gap="small")
 #----------------------------------- SIDEBAR -------------------------------------------------------#
 st.sidebar.title('Menu')
 
@@ -251,14 +260,26 @@ since_inception_date = st.sidebar.date_input('Since Inception Date', pd.to_datet
 
 
 # Calculate button
-calculate_button = st.sidebar.button('Calculate')
+#calculate_button = st.sidebar.button('Calculate')
 
+#----------------------------------- PDF BUTTON ----------------------------------------------------#
+if 'clicked' not in st.session_state:
+    st.session_state.clicked = False
+
+def click_button():
+    st.session_state.clicked = True 
+
+st.sidebar.button('Save Report as PDF', on_click=click_button)
+
+
+
+#----------------------------------- FOOTER --------------------------------------------------------#
 st.sidebar.markdown("")
 st.sidebar.markdown("")
 st.sidebar.markdown("---")
 st.sidebar.markdown(
-    "[![GitHub License](https://img.shields.io/github/license/miroslaw-steblik/investment-performance-app)]"
-    "(https://github.com/miroslaw-steblik/investment-performance-app)"
+    "[![GitHub License](https://img.shields.io/github/license/miroslaw-steblik/investor-reporting-app)]"
+    "(https://github.com/miroslaw-steblik/investor-reporting-app)"
 )
 
 
@@ -266,149 +287,200 @@ st.sidebar.markdown(
 #----------------------------------------- MAIN ----------------------------------------------------#
 if uploaded_file is not None:
     data = pd.read_csv(uploaded_file)
-    if calculate_button:
-        if choice == 'Monthly Returns':
+    #if calculate_button:  # button is clicked
+    if choice == 'Monthly Returns':  # Monthly Returns option is selected
 
-            #-------------------------- Monthly Return Series --------------------------------------#
-            performance = MonthlyReturnSeries(
-                                            data=data,
+        #-------------------------- Monthly Return Series --------------------------------------#
+        performance = MonthlyReturnSeries(
+                                        data=data,
+                                        reporting_date=reporting_date, 
+                                        since_inception_date=since_inception_date)
+                                            
+        # Validate the dates
+        if not is_eom(reporting_date, '%d/%m/%Y'):
+            st.error('Please select month end date.')
+            st.stop()
+        elif validate_date_range(reporting_date, '%d/%m/%Y', data) or validate_date_range(since_inception_date, '%d/%m/%Y', data):
+            st.error('Date is out of data range.')
+            st.stop()
+        elif validate_reporting_date(reporting_date, since_inception_date):
+            st.error('Reporting date cannot be earlier than inception date.')
+            st.stop()
+        elif validate_date_existance(since_inception_date, '%d/%m/%Y', data):
+            st.error('Since Inception date does not exist. Please choose different date.')
+            st.stop()
+
+
+        with sub_title1_cont:
+            st.header(':orange[_Monthly Returns_]')
+
+        with top_left_column:
+            st.header('Cumulative Performance')
+            cumulative_performance = performance.calculate_cumulative_performance()
+            st.dataframe(*style_table(cumulative_performance))
+        
+        with top_right_column:
+            st.header('Annualized Performance')
+            annualized_performance = performance.calculate_annualized_performance()
+            st.dataframe(*style_table(annualized_performance))
+
+        with bottom_left_column:
+            st.header('Annualized Volatility')
+            annualized_volatility = performance.calculate_annualized_volatility()
+            st.dataframe(*style_table(annualized_volatility))
+
+        with bottom_right_column:
+            st.header('Calendar Performance')
+            calendar_performance = performance.calculate_calendar_performance()
+            calendar_performance = calendar_performance.head(5)
+            calendar_performance.index = calendar_performance.index.astype(int).astype(str)
+            st.dataframe(*style_table(calendar_performance))
+        
+    else:
+        #-------------------------- Daily Price Series -----------------------------------------#
+        performance_daily = DailyPriceSeries(data=data,
                                             reporting_date=reporting_date, 
                                             since_inception_date=since_inception_date)
-                                                
         
-            # Validate the dates
-            if not is_eom(reporting_date, '%d/%m/%Y'):
-                st.error('Please select month end date.')
-                st.stop()
-            elif validate_date_range(reporting_date, '%d/%m/%Y', data) or validate_date_range(since_inception_date, '%d/%m/%Y', data):
-                st.error('Date is out of data range.')
-                st.stop()
-            elif validate_reporting_date(reporting_date, since_inception_date):
-                st.error('Reporting date cannot be earlier than inception date.')
-                st.stop()
-            elif validate_date_existance(since_inception_date, '%d/%m/%Y', data):
-                st.error('Since Inception date does not exist. Please choose different date.')
-                st.stop()
+        # Validate the dates
+        if not is_eom(reporting_date, '%d/%m/%Y'):
+            st.error('Reporting Date: Please select month end date.')
+            st.stop()
+        elif validate_date_range(reporting_date, '%d/%m/%Y', data) or validate_date_range(since_inception_date, '%d/%m/%Y', data):
+            st.error('Date is out of data range.')
+            st.stop()
+        elif validate_reporting_date(reporting_date, since_inception_date):
+            st.error('Reporting date cannot be earlier than inception date.')
+            st.stop()
+        elif validate_date_existance(since_inception_date, '%d/%m/%Y', data):
+            st.error('Since Inception date does not exist. Please choose different date.')
+            st.stop()
+        
+        with sub_title2_cont:
+            st.header(':orange[_Daily Price Series_]')
+
+        with top_left_column:
+            st.header('Cumulative Performance')
+            cumulative_performance = performance_daily.calculate_cumulative_performance()
+            st.dataframe(*style_table(cumulative_performance))
+        
+        with top_right_column:
+            st.header('Annualized Performance')
+            annualized_performance = performance_daily.calculate_annualized_performance()
+            st.dataframe(*style_table(annualized_performance))
+
+        with bottom_left_column:
+            st.header('Annualized Volatility')
+            annualized_volatility = performance_daily.calculate_annualized_volatility()
+            st.dataframe(*style_table(annualized_volatility))
+
+        with bottom_right_column:
+            st.header('Calendar Performance')
+            calendar_performance = performance_daily.calculate_calendar_performance()
+            calendar_performance = calendar_performance.head(5)
+            calendar_performance.index = calendar_performance.index.astype(int).astype(str)
+            st.dataframe(*style_table(calendar_performance))
 
 
-            with sub_title1_cont:
-                st.header(':orange[_Monthly Returns_]')
-
-            with top_left_column:
-                st.header('Cumulative Performance')
-                cumulative_performance = performance.calculate_cumulative_performance()
-                st.dataframe(*style_table(cumulative_performance))
-            
-            with top_right_column:
-                st.header('Annualized Performance')
-                annualized_performance = performance.calculate_annualized_performance()
-                st.dataframe(*style_table(annualized_performance))
-
-            with bottom_left_column:
-                st.header('Annualized Volatility')
-                annualized_volatility = performance.calculate_annualized_volatility()
-                st.dataframe(*style_table(annualized_volatility))
-
-            with bottom_right_column:
-                st.header('Calendar Performance')
-                calendar_performance = performance.calculate_calendar_performance()
-                calendar_performance = calendar_performance.head(5)
-                calendar_performance.index = calendar_performance.index.astype(int).astype(str)
-                st.dataframe(*style_table(calendar_performance))
-            
-        else:
-            #-------------------------- Daily Price Series -----------------------------------------#
-            performance_daily = DailyPriceSeries(data=data,
-                                                reporting_date=reporting_date, 
-                                                since_inception_date=since_inception_date)
-            
-            # Validate the dates
-            if not is_eom(reporting_date, '%d/%m/%Y'):
-                st.error('Reporting Date: Please select month end date.')
-                st.stop()
-            elif validate_date_range(reporting_date, '%d/%m/%Y', data) or validate_date_range(since_inception_date, '%d/%m/%Y', data):
-                st.error('Date is out of data range.')
-                st.stop()
-            elif validate_reporting_date(reporting_date, since_inception_date):
-                st.error('Reporting date cannot be earlier than inception date.')
-                st.stop()
-            elif validate_date_existance(since_inception_date, '%d/%m/%Y', data):
-                st.error('Since Inception date does not exist. Please choose different date.')
-                st.stop()
-            
-            with sub_title2_cont:
-                st.header(':orange[_Daily Price Series_]')
-
-            with top_left_column:
-                st.header('Cumulative Performance')
-                cumulative_performance = performance_daily.calculate_cumulative_performance()
-                st.dataframe(*style_table(cumulative_performance))
-            
-            with top_right_column:
-                st.header('Annualized Performance')
-                annualized_performance = performance_daily.calculate_annualized_performance()
-                st.dataframe(*style_table(annualized_performance))
-
-            with bottom_left_column:
-                st.header('Annualized Volatility')
-                annualized_volatility = performance_daily.calculate_annualized_volatility()
-                st.dataframe(*style_table(annualized_volatility))
-
-            with bottom_right_column:
-                st.header('Calendar Performance')
-                calendar_performance = performance_daily.calculate_calendar_performance()
-                calendar_performance = calendar_performance.head(5)
-                #calendar_performance.index = calendar_performance.index.astype(int).astype(str)
-                st.dataframe(*style_table(calendar_performance))
+    #-------------------------- PLOTLY CHARTS --------------------------------------------------#
+    if choice == 'Daily Price Series':
+        # Display the cumulative performance chart
+        container = st.container(border=True)
+        container.header('Price Chart')
+        container.line_chart(data)
 
 
-        #-------------------------- PLOTLY CHARTS --------------------------------------------------#
+    with chart_column1:
+        #data = data.set_index('Date')
+        data = data.pct_change()
+        data = data.dropna()
+        data = data + 1
+        data = data.cumprod()
+        data = data.reset_index()
+        data = data.rename(columns={'Date': 'Years'})
+        
+        data = data.set_index('Years')
+        fig = px.line(data, x=data.index, y=data.columns, title='Cumulative Performance Rebased')
+        fig.update_layout(title_x=0.5)
+        st.plotly_chart(fig)
 
-            # Display the cumulative performance chart
-            container = st.container(border=True)
-            container.header('Price Chart')
-            container.line_chart(data)
+    with chart_column2:
+        annualized_performance = annualized_performance.reset_index()
+        annualized_performance = annualized_performance.rename(columns={'index': 'Performance Metric'})
+        annualized_performance = annualized_performance.melt(id_vars='Performance Metric', var_name='Instrument', value_name='Performance')
+        #annualized_performance['Performance'] = annualized_performance['Performance'].apply(lambda x: "{:.2%}%".format(x))
+        fig = px.bar(annualized_performance, x='Instrument', y='Performance', color='Performance Metric', barmode='group', title='Annualized Performance')
+        fig.update_layout(title_x=0.5)
+        st.plotly_chart(fig)
+
+    with chart_column3:
+        calendar_performance = calendar_performance.reset_index()
+        calendar_performance = calendar_performance.rename(columns={'index': 'Date'})
+        calendar_performance = calendar_performance.melt(id_vars='Date', var_name='Instrument', value_name='Performance')
+        #calendar_performance['Performance'] = calendar_performance['Performance'].apply(lambda x: "{:.2%}%".format(x))
+        fig = px.bar(calendar_performance, x='Date', y='Performance', color='Instrument', barmode='group', title='Calendar Performance')
+        fig.update_layout(title_x=0.5)
+        st.plotly_chart(fig)
+
+    with chart_column4:
+        annualized_volatility = annualized_volatility.reset_index()
+        annualized_volatility = annualized_volatility.rename(columns={'index': 'Performance Metric'})
+        annualized_volatility = annualized_volatility.melt(id_vars='Performance Metric', var_name='Instrument', value_name='Volatility')
+        #annualized_volatility['Volatility'] = annualized_volatility['Volatility'].apply(lambda x: "{:.2%}%".format(x))
+        fig = px.bar(annualized_volatility, x='Instrument', y='Volatility', color='Performance Metric', barmode='group', title='Annualized Volatility')
+        fig.update_layout(title_x=0.5)
+        st.plotly_chart(fig)
+
 
   
 
-            
-            # data = data.pct_change()
-            # data = data.dropna()
-            # data = data + 1
-            # data = data.cumprod()
-            # data = data.reset_index()
-            # data = data.rename(columns={'Date': 'index'})
-            # data = data.set_index('index')
-            # fig = px.line(data, x=data.index, y=data.columns, title='Cumulative Performance Rebased')
-            # fig.update_layout(title_x=0.5)
-            # st.plotly_chart(fig)
+    
 
-            # Display the annualized performance chart
-            annualized_performance = annualized_performance.reset_index()
-            annualized_performance = annualized_performance.rename(columns={'index': 'Performance Metric'})
-            annualized_performance = annualized_performance.melt(id_vars='Performance Metric', var_name='Instrument', value_name='Performance')
-            #annualized_performance['Performance'] = annualized_performance['Performance'].apply(lambda x: "{:.2%}%".format(x))
-            fig = px.bar(annualized_performance, x='Instrument', y='Performance', color='Performance Metric', barmode='group', title='Annualized Performance')
-            fig.update_layout(title_x=0.5)
-            st.plotly_chart(fig)
 
-            # # Display the calendar performance chart
-            # calendar_performance = calendar_performance.reset_index()
-            # calendar_performance = calendar_performance.rename(columns={'index': 'Year'})
-            # calendar_performance = calendar_performance.melt(id_vars='Year', var_name='Instrument', value_name='Performance')
-            # #calendar_performance['Performance'] = calendar_performance['Performance'].apply(lambda x: "{:.2%}%".format(x))
-            # fig = px.bar(calendar_performance, x='Year', y='Performance', color='Instrument', barmode='group', title='Calendar Performance')
-            # fig.update_layout(title_x=0.5)
-            # st.plotly_chart(fig)
 
-            # Display the annualized volatility chart
-            annualized_volatility = annualized_volatility.reset_index()
-            annualized_volatility = annualized_volatility.rename(columns={'index': 'Performance Metric'})
-            annualized_volatility = annualized_volatility.melt(id_vars='Performance Metric', var_name='Instrument', value_name='Volatility')
-            #annualized_volatility['Volatility'] = annualized_volatility['Volatility'].apply(lambda x: "{:.2%}%".format(x))
-            fig = px.bar(annualized_volatility, x='Instrument', y='Volatility', color='Performance Metric', barmode='group', title='Annualized Volatility')
-            fig.update_layout(title_x=0.5)
-            st.plotly_chart(fig)
+
+
+
+ 
+
+
+# if st.session_state.clicked:
+
+#     # Convert your dataframes to HTML
+#     cumulative_performance_html = cumulative_performance.to_html()
+#     annualized_performance_html = annualized_performance.to_html()
+#     annualized_volatility_html = annualized_volatility.to_html()
+#     calendar_performance_html = calendar_performance.to_html()
+
+#     # Combine the HTML strings
+#     html = f"""
+#     <html>
+#     <head>
+#     <style>
+#     table, th, td {{
+#     border: 1px solid black;
+#     border-collapse: collapse;
+#     }}
+#     </style>
+#     </head>
+#     <body>
+#     <h1>Investor Reporting App</h1>
+#     <h2>Performance Metrics</h2>
+#     <h3>Cumulative Performance</h3>
+#     {cumulative_performance_html}
+#     <h3>Annualized Performance</h3>
+#     {annualized_performance_html}
+#     <h3>Annualized Volatility</h3>
+#     {annualized_volatility_html}
+#     <h3>Calendar Performance</h3>
+#     {calendar_performance_html}
+#     </body>
+#     </html>
+#     """
+
+#     # Convert the HTML to a PDF
+#     pdfkit.from_string(html, 'Investor_Report.pdf')
+
 
 
             
