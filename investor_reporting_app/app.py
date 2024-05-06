@@ -10,11 +10,12 @@ import numpy as np
 import plotly.express as px
 from dateutil.relativedelta import relativedelta
 from QuantLib import Date, Thirty360 # 30/360 is applied to follow the industry standard for calculating the time period between two dates
-import pdfkit
+import plotly.graph_objects as go
 
 
 
-#TODO: Add PDF generation functionality
+#TODO: 
+#Add PDF generation functionality
 # fix 10year performance calculation
 
 
@@ -139,6 +140,7 @@ class DailyPriceSeries():
         self.periods = {0: 1, 1: 3, 2: 5, 3: 10, 4: since_inception_period}  # The time periods for each performance metric
         self.period_names = {0: '1 year', 1: '3 year', 2: '5 year', 3: '10 year', 4: 'Since Inception'}
 
+
     def calculate_cumulative_performance(self):
          
             daily_fund_data = self.fund_data.asfreq('D').ffill()  # Use daily data
@@ -199,23 +201,17 @@ class DailyPriceSeries():
 
 
 #------------------------------- PAGE CONFIG -------------------------------------------------------#
+
 def style_table(df, width=1000):
-    return (df.style.format("{:.2%}")
+    return (df.style.format("{:.1%}")
             .set_properties(**{'color': 'white'})), width
 
 st.set_page_config(page_title= "Investor Reporting App", 
                    layout="wide")
 
-st.title('Investor Reporting App  :chart_with_upwards_trend:')
 
-sub_title1_cont = st.container()
-sub_title2_cont = st.container()
-
-left_col1, right_col1 = st.columns((2),gap="small")
-left_col2, right_col2 = st.columns((2),gap="small")
-left_col3, right_col3 = st.columns((2),gap="small")
-left_col4, right_col4 = st.columns((2),gap="small")
 #----------------------------------- SIDEBAR -------------------------------------------------------#
+
 st.sidebar.title('Menu')
 
 uploaded_file = st.sidebar.file_uploader("Choose a CSV file to analyze", type="csv")
@@ -225,7 +221,7 @@ if uploaded_file is None:
     st.sidebar.info('Please upload a CSV file to start the analysis.')
 
     st.markdown("""
-               
+                # Investor Reporting App  :chart_with_upwards_trend:
                 
                 ### This application simplifies the reporting workflow and reduces manual efforts by providing investment performance metrics for a given list of investment instruments.
 
@@ -253,25 +249,128 @@ if uploaded_file is None:
 options = ['Monthly Returns', 'Daily Price Series']
 choice = st.sidebar.radio("Choose an option", options)
 st.sidebar.markdown("")
-reporting_date = st.sidebar.date_input('Reporting Date', pd.to_datetime('31/03/2024', format='%d/%m/%Y')) #remove hardcoding
-since_inception_date = st.sidebar.date_input('Since Inception Date', pd.to_datetime('31/03/2014', format='%d/%m/%Y'))
+reporting_date = st.sidebar.date_input('Reporting Date', pd.to_datetime('31/01/2024', format='%d/%m/%Y')) #remove hardcoding
+since_inception_date = st.sidebar.date_input('Since Inception Date', pd.to_datetime('21/11/2014', format='%d/%m/%Y'))
 
 
-# Calculate button
-#calculate_button = st.sidebar.button('Calculate')
+#----------------------------------- CONTAINERS ----------------------------------------------------#
+
+# Create a container for the sub-titles
+sub_title1_cont = st.container()
+sub_title2_cont = st.container()
+
+# Create a row of containers
+row1 = st.columns(2)
+row2 = st.columns(2)
+
+# Create a new container in the first column and add text to it
+first_container = row1[0].container(border=True)
+first_container.text("Cumulative Performance")
+
+second_container = row1[1].container(border=True)
+second_container.text("Annualized Performance")
+
+third_container = row2[0].container(border=True)
+third_container.text("Annualized Volatility")
+
+fourth_container = row2[1].container(border=True)
+fourth_container.text("Calendar Performance")
+
+if choice == 'Daily Price Series':
+    fifth_container = st.container(border=True)
+    fifth_container.text("Price Chart")
+
+#---------------- FIRST CONTAINER -------------------#
+def create_cumulative_performance_container(performance):
+    data = performance.fund_data.ffill().copy()
+    data_display = data.pct_change()
+    data_display = data_display + 1
+    data_display = data_display.cumprod() - 1
+    fig = px.line(data_display, 
+                    x=data_display.index, 
+                    y=data_display.columns, 
+                    labels={'value': '', 'Date': 'Years ( all data )', 'variable': 'Instrument'},
+                    )
+    fig.update_layout(title_text="",
+                        legend_title_text="",
+                        legend=dict(
+                            orientation="h",
+                            yanchor="bottom",
+                            y=1,
+                            xanchor="right",
+                            x=1
+                        ),height=500,width= 650)
+    fig.update_yaxes(tickformat=".1%")
+    return fig, data
+
+#---------------- SECOND CONTAINER -------------------#
+def create_annualized_performance_container(performance):
+    annualized_performance = performance.calculate_annualized_performance().copy()
+    annualized_performance_display = annualized_performance.reset_index()
+    annualized_performance_display = annualized_performance_display.rename(columns={'index': 'Performance Metric', 'Performance': 'Annualized Performance'})
+    annualized_performance_melted = annualized_performance_display.melt(id_vars='Performance Metric', var_name='Instrument', value_name='Annualized Performance')
+    fig = px.bar(annualized_performance_melted, x='Instrument', y='Annualized Performance', color='Performance Metric', barmode='group', title='Annualized Performance')
+    fig.update_layout(title_text="",legend_title_text='', height=500,width= 650)
+    fig.update_yaxes(tickformat=".1%", title_text="")
+    return fig, annualized_performance
+
+#---------------- THIRD CONTAINER -------------------#
+def create_annualied_volatility_container(performance):
+    annualized_volatility = performance.calculate_annualized_volatility().copy()
+    annualized_volatility_display = annualized_volatility.reset_index()
+    annualized_volatility_display = annualized_volatility_display.rename(columns={'index': 'Performance Metric'})
+    annualized_volatility_melted = annualized_volatility_display.melt(id_vars='Performance Metric', var_name='Instrument', value_name='Volatility')
+    fig = px.bar(annualized_volatility_melted, x='Instrument', y='Volatility', color='Performance Metric', barmode='group', title='Annualized Volatility')
+    fig.update_layout(title_text="",legend_title_text='', height=500,width= 650)
+    fig.update_yaxes(tickformat=".1%", title_text="")        
+    return fig, annualized_volatility
+
+#---------------- FOURTH CONTAINER -------------------#
+def create_calendar_performance_container(performance):
+    calendar_performance = performance.calculate_calendar_performance().copy()
+    # Check if 'Date' column exists, if not create it using the DataFrame's index
+    if 'Date' not in calendar_performance.columns:
+        calendar_performance['Date'] = calendar_performance.index
+    # Melt the DataFrame    
+    calendar_performance_melted = calendar_performance.melt(id_vars='Date', var_name='Instrument', value_name='Performance')
+    fig = px.bar(calendar_performance_melted, x='Date', y='Performance', color='Instrument', barmode='group', title='Calendar Performance')
+    fig.update_layout(title_text="",legend_title_text='', height=500,width= 650)
+    fig.update_yaxes(tickformat=".1%", title_text="")
+    # Drop the 'Date' column from the original DataFrame
+    calendar_performance = calendar_performance.drop(columns='Date')
+    return fig, calendar_performance
+
+#----------------------- FIFTH CONTAINER -------------------#
+def create_price_chart_container(performance):
+    data = performance.fund_data.ffill().copy()
+    # Create traces for each instrument
+    traces = [go.Scatter(x=data.index, y=data[instrument], name=instrument) for instrument in data.columns]
+    # Create a layout without a dropdown menu
+    layout = go.Layout(
+        title_text="",
+        legend_title_text="",
+        height=400,
+        width=1400
+    )
+    fig = go.Figure(data=traces, layout=layout)
+    fig.update_yaxes(title_text="")
+    return fig
+
 
 #----------------------------------- PDF BUTTON ----------------------------------------------------#
-if 'clicked' not in st.session_state:
-    st.session_state.clicked = False
+# if 'clicked' not in st.session_state:
+#     st.session_state.clicked = False
 
-def click_button():
-    st.session_state.clicked = True 
+# def click_button():
+#     st.session_state.clicked = True 
 
-st.sidebar.button('Save Report as PDF', on_click=click_button)
+# st.sidebar.button('Save Report as PDF', on_click=click_button)
+#TODO: Add PDF generation functionality
 
 
 
 #----------------------------------- FOOTER --------------------------------------------------------#
+
 st.sidebar.markdown("")
 st.sidebar.markdown("")
 st.sidebar.markdown("---")
@@ -281,15 +380,14 @@ st.sidebar.markdown(
 )
 
 
-
 #----------------------------------------- MAIN ----------------------------------------------------#
 if uploaded_file is not None:
     data = pd.read_csv(uploaded_file)
     #if calculate_button:  # button is clicked
     if choice == 'Monthly Returns':  # Monthly Returns option is selected
 
-        #-------------------------- Monthly Return Series --------------------------------------#
-        performance = MonthlyReturnSeries(
+        #-------------------------- Monthly Return Series-----------------------#
+        performance_monthly = MonthlyReturnSeries(
                                         data=data,
                                         reporting_date=reporting_date, 
                                         since_inception_date=since_inception_date)
@@ -308,34 +406,39 @@ if uploaded_file is not None:
             st.error('Since Inception date does not exist. Please choose different date.')
             st.stop()
 
-
+            
         with sub_title1_cont:
             st.header(':orange[_Monthly Returns_]')
 
-        with left_col2:
-            st.header('Cumulative Performance')
-            cumulative_performance = performance.calculate_cumulative_performance()
+
+        with first_container:
+            fig, data = create_cumulative_performance_container(performance_monthly)
+            st.plotly_chart(fig)
+            cumulative_performance = performance_monthly.calculate_cumulative_performance()
             st.dataframe(*style_table(cumulative_performance))
-        
-        with right_col2:
-            st.header('Annualized Performance')
-            annualized_performance = performance.calculate_annualized_performance()
+
+
+        with second_container:
+            fig, annualized_performance = create_annualized_performance_container(performance_monthly)
+            st.plotly_chart(fig)
             st.dataframe(*style_table(annualized_performance))
 
-        with left_col4:
-            st.header('Annualized Volatility')
-            annualized_volatility = performance.calculate_annualized_volatility()
+        with third_container:
+            fig, annualized_volatility = create_annualied_volatility_container(performance_monthly)
+            st.plotly_chart(fig)
             st.dataframe(*style_table(annualized_volatility))
 
-        with right_col4:
-            st.header('Calendar Performance')
-            calendar_performance = performance.calculate_calendar_performance()
+
+        with fourth_container:
+            fig, calendar_performance = create_calendar_performance_container(performance_monthly)
+            st.plotly_chart(fig)
             calendar_performance = calendar_performance.head(5)
             calendar_performance.index = calendar_performance.index.astype(int).astype(str)
             st.dataframe(*style_table(calendar_performance))
         
+        
     else:
-        #-------------------------- Daily Price Series -----------------------------------------#
+        #-------------------------- Daily Price Series -------------------------#
         performance_daily = DailyPriceSeries(data=data,
                                             reporting_date=reporting_date, 
                                             since_inception_date=since_inception_date)
@@ -354,130 +457,52 @@ if uploaded_file is not None:
             st.error('Since Inception date does not exist. Please choose different date.')
             st.stop()
         
+
         with sub_title2_cont:
             st.header(':orange[_Daily Price Series_]')
+        
 
-        with left_col2:
-            st.header('Cumulative Performance')
+        with first_container:
+            fig, data = create_cumulative_performance_container(performance_daily)
+            st.plotly_chart(fig)
             cumulative_performance = performance_daily.calculate_cumulative_performance()
             st.dataframe(*style_table(cumulative_performance))
-        
-        with right_col2:
-            st.header('Annualized Performance')
-            annualized_performance = performance_daily.calculate_annualized_performance()
+
+
+        with second_container:
+            fig, annualized_performance = create_annualized_performance_container(performance_daily)
+            st.plotly_chart(fig)
             st.dataframe(*style_table(annualized_performance))
 
-        with left_col4:
-            st.header('Annualized Volatility')
-            annualized_volatility = performance_daily.calculate_annualized_volatility()
+
+        with third_container:
+            fig, annualized_volatility = create_annualied_volatility_container(performance_daily)
+            st.plotly_chart(fig)
             st.dataframe(*style_table(annualized_volatility))
 
-        with right_col4:
-            st.header('Calendar Performance')
-            calendar_performance = performance_daily.calculate_calendar_performance()
+
+        with fourth_container:
+            fig, calendar_performance = create_calendar_performance_container(performance_daily)
+            st.plotly_chart(fig)
             calendar_performance = calendar_performance.head(5)
             calendar_performance.index = calendar_performance.index.astype(int).astype(str)
             st.dataframe(*style_table(calendar_performance))
 
 
-    #-------------------------- PLOTLY CHARTS --------------------------------------------------#
     if choice == 'Daily Price Series':
-        # Display the cumulative performance chart
-        container = st.container(border=True)
-        container.header('Price Chart')
-        container.line_chart(data)
-
-
-    with left_col1:
-        #data = data.set_index('Date')
-        data = data.pct_change()
-        data = data.dropna()
-        data = data + 1
-        data = data.cumprod()
-        data = data.reset_index()
-        data = data.rename(columns={'Date': 'Years'})
-        
-        data = data.set_index('Years')
-        fig = px.line(data, x=data.index, y=data.columns, title='Cumulative Performance Rebased')
-        fig.update_layout(title_x=0.5)
-        st.plotly_chart(fig)
-
-    with right_col1:
-        annualized_performance = annualized_performance.reset_index()
-        annualized_performance = annualized_performance.rename(columns={'index': 'Performance Metric'})
-        annualized_performance = annualized_performance.melt(id_vars='Performance Metric', var_name='Instrument', value_name='Performance')
-        #annualized_performance['Performance'] = annualized_performance['Performance'].apply(lambda x: "{:.2%}%".format(x))
-        fig = px.bar(annualized_performance, x='Instrument', y='Performance', color='Performance Metric', barmode='group', title='Annualized Performance')
-        fig.update_layout(title_x=0.5)
-        st.plotly_chart(fig)
-
-    with right_col3:
-        calendar_performance = calendar_performance.reset_index()
-        calendar_performance = calendar_performance.rename(columns={'index': 'Date'})
-        calendar_performance = calendar_performance.melt(id_vars='Date', var_name='Instrument', value_name='Performance')
-        #calendar_performance['Performance'] = calendar_performance['Performance'].apply(lambda x: "{:.2%}%".format(x))
-        fig = px.bar(calendar_performance, x='Date', y='Performance', color='Instrument', barmode='group', title='Calendar Performance')
-        fig.update_layout(title_x=0.5)
-        st.plotly_chart(fig)
-
-    with left_col3:
-        annualized_volatility = annualized_volatility.reset_index()
-        annualized_volatility = annualized_volatility.rename(columns={'index': 'Performance Metric'})
-        annualized_volatility = annualized_volatility.melt(id_vars='Performance Metric', var_name='Instrument', value_name='Volatility')
-        #annualized_volatility['Volatility'] = annualized_volatility['Volatility'].apply(lambda x: "{:.2%}%".format(x))
-        fig = px.bar(annualized_volatility, x='Instrument', y='Volatility', color='Performance Metric', barmode='group', title='Annualized Volatility')
-        fig.update_layout(title_x=0.5)
-        st.plotly_chart(fig)
-
-
-  
-
-    
+        with fifth_container:
+            fig = create_price_chart_container(performance_daily)
+            st.plotly_chart(fig)
 
 
 
 
 
 
- 
 
 
-# if st.session_state.clicked:
 
-#     # Convert your dataframes to HTML
-#     cumulative_performance_html = cumulative_performance.to_html()
-#     annualized_performance_html = annualized_performance.to_html()
-#     annualized_volatility_html = annualized_volatility.to_html()
-#     calendar_performance_html = calendar_performance.to_html()
 
-#     # Combine the HTML strings
-#     html = f"""
-#     <html>
-#     <head>
-#     <style>
-#     table, th, td {{
-#     border: 1px solid black;
-#     border-collapse: collapse;
-#     }}
-#     </style>
-#     </head>
-#     <body>
-#     <h1>Investor Reporting App</h1>
-#     <h2>Performance Metrics</h2>
-#     <h3>Cumulative Performance</h3>
-#     {cumulative_performance_html}
-#     <h3>Annualized Performance</h3>
-#     {annualized_performance_html}
-#     <h3>Annualized Volatility</h3>
-#     {annualized_volatility_html}
-#     <h3>Calendar Performance</h3>
-#     {calendar_performance_html}
-#     </body>
-#     </html>
-#     """
-
-#     # Convert the HTML to a PDF
-#     pdfkit.from_string(html, 'Investor_Report.pdf')
 
 
 
