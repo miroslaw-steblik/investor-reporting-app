@@ -211,12 +211,10 @@ st.title('Investor Reporting App  :chart_with_upwards_trend:')
 sub_title1_cont = st.container()
 sub_title2_cont = st.container()
 
-top_left_column, top_right_column = st.columns((2),gap="small")
-bottom_left_column, bottom_right_column = st.columns((2),gap="small")
-  
-
-chart_column1, chart_column2, = st.columns((2),gap="small")
-chart_column3, chart_column4 = st.columns((2),gap="small")
+left_col1, right_col1 = st.columns((2),gap="small")
+left_col2, right_col2 = st.columns((2),gap="small")
+left_col3, right_col3 = st.columns((2),gap="small")
+left_col4, right_col4 = st.columns((2),gap="small")
 #----------------------------------- SIDEBAR -------------------------------------------------------#
 st.sidebar.title('Menu')
 
@@ -314,22 +312,22 @@ if uploaded_file is not None:
         with sub_title1_cont:
             st.header(':orange[_Monthly Returns_]')
 
-        with top_left_column:
+        with left_col2:
             st.header('Cumulative Performance')
             cumulative_performance = performance.calculate_cumulative_performance()
             st.dataframe(*style_table(cumulative_performance))
         
-        with top_right_column:
+        with right_col2:
             st.header('Annualized Performance')
             annualized_performance = performance.calculate_annualized_performance()
             st.dataframe(*style_table(annualized_performance))
 
-        with bottom_left_column:
+        with left_col4:
             st.header('Annualized Volatility')
             annualized_volatility = performance.calculate_annualized_volatility()
             st.dataframe(*style_table(annualized_volatility))
 
-        with bottom_right_column:
+        with right_col4:
             st.header('Calendar Performance')
             calendar_performance = performance.calculate_calendar_performance()
             calendar_performance = calendar_performance.head(5)
@@ -359,22 +357,22 @@ if uploaded_file is not None:
         with sub_title2_cont:
             st.header(':orange[_Daily Price Series_]')
 
-        with top_left_column:
+        with left_col2:
             st.header('Cumulative Performance')
             cumulative_performance = performance_daily.calculate_cumulative_performance()
             st.dataframe(*style_table(cumulative_performance))
         
-        with top_right_column:
+        with right_col2:
             st.header('Annualized Performance')
             annualized_performance = performance_daily.calculate_annualized_performance()
             st.dataframe(*style_table(annualized_performance))
 
-        with bottom_left_column:
+        with left_col4:
             st.header('Annualized Volatility')
             annualized_volatility = performance_daily.calculate_annualized_volatility()
             st.dataframe(*style_table(annualized_volatility))
 
-        with bottom_right_column:
+        with right_col4:
             st.header('Calendar Performance')
             calendar_performance = performance_daily.calculate_calendar_performance()
             calendar_performance = calendar_performance.head(5)
@@ -390,7 +388,7 @@ if uploaded_file is not None:
         container.line_chart(data)
 
 
-    with chart_column1:
+    with left_col1:
         #data = data.set_index('Date')
         data = data.pct_change()
         data = data.dropna()
@@ -404,7 +402,7 @@ if uploaded_file is not None:
         fig.update_layout(title_x=0.5)
         st.plotly_chart(fig)
 
-    with chart_column2:
+    with right_col1:
         annualized_performance = annualized_performance.reset_index()
         annualized_performance = annualized_performance.rename(columns={'index': 'Performance Metric'})
         annualized_performance = annualized_performance.melt(id_vars='Performance Metric', var_name='Instrument', value_name='Performance')
@@ -413,7 +411,7 @@ if uploaded_file is not None:
         fig.update_layout(title_x=0.5)
         st.plotly_chart(fig)
 
-    with chart_column3:
+    with right_col3:
         calendar_performance = calendar_performance.reset_index()
         calendar_performance = calendar_performance.rename(columns={'index': 'Date'})
         calendar_performance = calendar_performance.melt(id_vars='Date', var_name='Instrument', value_name='Performance')
@@ -422,7 +420,7 @@ if uploaded_file is not None:
         fig.update_layout(title_x=0.5)
         st.plotly_chart(fig)
 
-    with chart_column4:
+    with left_col3:
         annualized_volatility = annualized_volatility.reset_index()
         annualized_volatility = annualized_volatility.rename(columns={'index': 'Performance Metric'})
         annualized_volatility = annualized_volatility.melt(id_vars='Performance Metric', var_name='Instrument', value_name='Volatility')
