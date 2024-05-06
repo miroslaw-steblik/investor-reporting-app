@@ -1,8 +1,5 @@
-"""
-MIT License, Copyright (C) 2024, Miroslaw Steblik
 
-"""
-
+""" MIT License, Copyright (C) 2024, Miroslaw Steblik """
 
 import streamlit as st
 import pandas as pd
@@ -11,13 +8,6 @@ import plotly.express as px
 from dateutil.relativedelta import relativedelta
 from QuantLib import Date, Thirty360 # 30/360 is applied to follow the industry standard for calculating the time period between two dates
 import plotly.graph_objects as go
-
-
-
-#TODO: 
-#Add PDF generation functionality
-# fix 10year performance calculation
-
 
 
 #------------------------------- VALIDATION FUNCTIONS ----------------------------------------------#
@@ -42,8 +32,6 @@ def validate_date_existance(date, date_format, data):
     if date not in data.index:
         return True
 
-
-   
 
 #----------------------------- Monthly Return Series Class -----------------------------------------#
 
@@ -123,7 +111,7 @@ class MonthlyReturnSeries():
         return performance_df
         # tested and working
 
-#------------------------------------ Daily Price Series Class -------------------------------------#
+#----------------------------- Daily Price Series Class --------------------------------------------#
 class DailyPriceSeries():
     def __init__(self, data, reporting_date, since_inception_date):
         self.fund_data = data
@@ -209,6 +197,14 @@ def style_table(df, width=1000):
 st.set_page_config(page_title= "Investor Reporting App", 
                    layout="wide")
 
+#----------------------------------- IMAGES --------------------------------------------------------#
+
+image_list = ['investor_reporting_app/assets/bar_chart_1.png', 
+              'investor_reporting_app/assets/line_chart_1.png',
+              'investor_reporting_app/assets/bar_chart_3.png',
+              'investor_reporting_app/assets/bar_chart_2.png',
+              'investor_reporting_app/assets/histogram.png']
+
 
 #----------------------------------- SIDEBAR -------------------------------------------------------#
 
@@ -220,29 +216,30 @@ st.sidebar.markdown("") # Add space
 if uploaded_file is None:
     st.sidebar.info('Please upload a CSV file to start the analysis.')
 
+#----------------------------------- INTRO ---------------------------------------------------------#
+    st.header('Investor Reporting App')
+    st.subheader('Simplify reporting workflow and reduce your manual efforts with interactive dashboard.')
+
+    # Display the images
+    cols = st.columns([1,1,1,1,1])
+    for col, image in zip(cols, image_list):
+        col.image(image)  
+
+    st.markdown('#### Inside the app you can find the following functionalities:')
+
+    df = pd.DataFrame({
+        'Tables': ['Cumulative and annualized performance tables', 'Volatility tables', 'Calendar performance table'],   
+        'Charts': ['Price line chart', 'Cumulative performance chart', 'Other']
+    })
+    st.data_editor(df, height=150, width=700, hide_index=True)
+
     st.markdown("""
-                # Investor Reporting App  :chart_with_upwards_trend:
-                
-                ### This application simplifies the reporting workflow and reduces manual efforts by providing investment performance metrics for a given list of investment instruments.
-
                 Investment team can upload a CSV file containing the daily price series or monthly returns of the instruments and choose the desired option from the sidebar menu. 
-                This solution transform data loaded from the file into ready to read format that can be used by investment team for on-the-fly analysis or as a part of client reporting.
                 
-                ### Interactive dashboard allows you to quickly scan through:
-                1. Cumulative performance table
-                2. Annualized performance table
-                3. Annualized volatility table
-                4. Calendar performance table
-                5. Price line chart
-                6. Cumulative performance chart
-
-                After succesfull analysis report can be saved in the form of PDF that can be shared with other teams or used in client reports.
-
+                App will transform data loaded from the file into ready to read format that can be used for on-the-fly analysis or as a part of client reporting.
 
                 ## *No more excel sheets, no more manual calculations.*
                 """)
-    st.image('https://github.com/miroslaw-steblik/investor-reporting-app/blob/main/investor_reporting_app/assets/bar_chart_1.png', caption='Sunrise by the mountains')
-    st.image('https://github.com/miroslaw-steblik/investor-reporting-app/blob/main/investor_reporting_app/assets/bar_chart_performance.png', caption='Sunrise by the mountains')
     st.write('---')
     st.stop()
 
@@ -282,7 +279,9 @@ if choice == 'Daily Price Series':
     fifth_container = st.container(border=True)
     fifth_container.text("Price Chart")
 
-#---------------- FIRST CONTAINER -------------------#
+sixth_container = st.container(border=True)
+sixth_container.text("Histogram")
+#---------------------------------- FIRST CONTAINER ----------------------------#
 def create_cumulative_performance_container(performance):
     data = performance.fund_data.ffill().copy()
     data_display = data.pct_change()
@@ -291,7 +290,7 @@ def create_cumulative_performance_container(performance):
     fig = px.line(data_display, 
                     x=data_display.index, 
                     y=data_display.columns, 
-                    labels={'value': '', 'Date': 'Years ( all data )', 'variable': 'Instrument'},
+                    labels={'value': '', 'Date': '', 'variable': 'Instrument'},
                     )
     fig.update_layout(title_text="",
                         legend_title_text="",
@@ -305,7 +304,7 @@ def create_cumulative_performance_container(performance):
     fig.update_yaxes(tickformat=".1%")
     return fig, data
 
-#---------------- SECOND CONTAINER -------------------#
+#---------------------------- SECOND CONTAINER ---------------------------------#
 def create_annualized_performance_container(performance):
     annualized_performance = performance.calculate_annualized_performance().copy()
     annualized_performance_display = annualized_performance.reset_index()
@@ -314,9 +313,10 @@ def create_annualized_performance_container(performance):
     fig = px.bar(annualized_performance_melted, x='Instrument', y='Annualized Performance', color='Performance Metric', barmode='group', title='Annualized Performance')
     fig.update_layout(title_text="",legend_title_text='', height=500,width= 650)
     fig.update_yaxes(tickformat=".1%", title_text="")
+    fig.update_xaxes(title_text="")
     return fig, annualized_performance
 
-#---------------- THIRD CONTAINER -------------------#
+#------------------------------- THIRD CONTAINER -------------------------------#
 def create_annualied_volatility_container(performance):
     annualized_volatility = performance.calculate_annualized_volatility().copy()
     annualized_volatility_display = annualized_volatility.reset_index()
@@ -324,10 +324,11 @@ def create_annualied_volatility_container(performance):
     annualized_volatility_melted = annualized_volatility_display.melt(id_vars='Performance Metric', var_name='Instrument', value_name='Volatility')
     fig = px.bar(annualized_volatility_melted, x='Instrument', y='Volatility', color='Performance Metric', barmode='group', title='Annualized Volatility')
     fig.update_layout(title_text="",legend_title_text='', height=500,width= 650)
-    fig.update_yaxes(tickformat=".1%", title_text="")        
+    fig.update_yaxes(tickformat=".1%", title_text="") 
+    fig.update_xaxes(title_text="")       
     return fig, annualized_volatility
 
-#---------------- FOURTH CONTAINER -------------------#
+#-------------------------- FOURTH CONTAINER -----------------------------------#
 def create_calendar_performance_container(performance):
     calendar_performance = performance.calculate_calendar_performance().copy()
     # Check if 'Date' column exists, if not create it using the DataFrame's index
@@ -338,11 +339,11 @@ def create_calendar_performance_container(performance):
     fig = px.bar(calendar_performance_melted, x='Date', y='Performance', color='Instrument', barmode='group', title='Calendar Performance')
     fig.update_layout(title_text="",legend_title_text='', height=500,width= 650)
     fig.update_yaxes(tickformat=".1%", title_text="")
-    # Drop the 'Date' column from the original DataFrame
+    fig.update_xaxes(title_text="")
     calendar_performance = calendar_performance.drop(columns='Date')
     return fig, calendar_performance
 
-#----------------------- FIFTH CONTAINER -------------------#
+#------------------------- FIFTH CONTAINER -------------------------------------#
 def create_price_chart_container(performance):
     data = performance.fund_data.ffill().copy()
     # Create traces for each instrument
@@ -358,8 +359,26 @@ def create_price_chart_container(performance):
     fig.update_yaxes(title_text="")
     return fig
 
+#------------------------- SIXTH CONTAINER -------------------------------------#
+def create_histogram_container(performance):
+    histogram_columns = st.columns([1,1,1])
+    data = performance.fund_data.ffill().copy()
+    data = data.pct_change().dropna()
+    for col, instrument in zip(histogram_columns, data.columns):
+        fig = px.histogram(data[instrument], x=instrument, title=instrument)
+        fig.update_layout( height=500,width= 400, title_text="",legend_title_text='')
+        fig.update_yaxes(title_text="")
+        fig.update_xaxes(tickformat=".1%")
+        min_value = data[instrument].min()
+        max_value = data[instrument].max()
+        fig.add_annotation(x=min_value, y=25, text=f'Min: {min_value:.1%}', showarrow=False)
+        fig.add_annotation(x=max_value, y=25, text=f'Max: {max_value:.1%}', showarrow=False)
+
+        col.plotly_chart(fig)
+    return fig
 
 #----------------------------------- PDF BUTTON ----------------------------------------------------#
+#TODO
 # if 'clicked' not in st.session_state:
 #     st.session_state.clicked = False
 
@@ -367,7 +386,7 @@ def create_price_chart_container(performance):
 #     st.session_state.clicked = True 
 
 # st.sidebar.button('Save Report as PDF', on_click=click_button)
-#TODO: Add PDF generation functionality
+
 
 
 
@@ -385,7 +404,6 @@ st.sidebar.markdown(
 #----------------------------------------- MAIN ----------------------------------------------------#
 if uploaded_file is not None:
     data = pd.read_csv(uploaded_file)
-    #if calculate_button:  # button is clicked
     if choice == 'Monthly Returns':  # Monthly Returns option is selected
 
         #-------------------------- Monthly Return Series-----------------------#
@@ -438,6 +456,8 @@ if uploaded_file is not None:
             calendar_performance.index = calendar_performance.index.astype(int).astype(str)
             st.dataframe(*style_table(calendar_performance))
         
+        with sixth_container:
+            create_histogram_container(performance_monthly)
         
     else:
         #-------------------------- Daily Price Series -------------------------#
@@ -491,10 +511,22 @@ if uploaded_file is not None:
             st.dataframe(*style_table(calendar_performance))
 
 
-    if choice == 'Daily Price Series':
-        with fifth_container:
-            fig = create_price_chart_container(performance_daily)
-            st.plotly_chart(fig)
+        if choice == 'Daily Price Series':
+            with fifth_container:
+                fig = create_price_chart_container(performance_daily)
+                st.plotly_chart(fig)
+        else:
+            pass   
+
+        
+        with sixth_container:
+            create_histogram_container(performance_daily)
+
+                
+
+
+
+            
 
 
 
