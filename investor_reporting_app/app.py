@@ -1,6 +1,6 @@
 """
-Copyright (C) 2024, Miroslaw Steblik
-MIT License
+MIT License, Copyright (C) 2024, Miroslaw Steblik
+
 """
 
 
@@ -241,7 +241,9 @@ if uploaded_file is None:
 
                 ## *No more excel sheets, no more manual calculations.*
                 """)
-    
+    st.image('https://github.com/miroslaw-steblik/investor-reporting-app/blob/main/investor_reporting_app/assets/bar_chart_1.png', caption='Sunrise by the mountains')
+    st.image('https://github.com/miroslaw-steblik/investor-reporting-app/blob/main/investor_reporting_app/assets/bar_chart_performance.png', caption='Sunrise by the mountains')
+    st.write('---')
     st.stop()
 
 
