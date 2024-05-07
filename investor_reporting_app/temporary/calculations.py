@@ -4,29 +4,16 @@ from dateutil.relativedelta import relativedelta
 from QuantLib import Date, Thirty360 # 30/360 is applied to follow the industry standard for calculating the time period between two dates
 from datetime import datetime
 
-monthly_data_path = '/home/miros/DataOps/testing/data/fund_data_26_04_2024.csv'
+monthly_data_path = '/home/miros/DataOps/testing/data/monthly_returns_less_then_10_years.csv'
 daily_data_path = '/home/miros/DataOps/testing/data/daily_prices_less_then_10_years.csv'
-reporting_date = '30/06/2023'
-since_inception_date = '21/05/2012'
+reporting_date = '30/04/2023'
+since_inception_date = '31/12/2015'
 
 
 pd.set_option('display.max_rows', 100) 
 
-# NOTE
-# amended calculate_anualized_volatility method in DailyPriceSeries class
-# tested both classes and they are working as expected
-## amendig check on data availability for both classes
 
-
-#-------------------------- Decorators ---------------------------------#
-# def validate_dates(func):
-#     def wrapper(self, *args, **kwargs):
-#         if self.reporting_date < self.since_inception_date:
-#             raise ValueError("Reporting date cannot be earlier than inception date.")
-#         return func(self, *args, **kwargs)
-#     return wrapper
-
-
+#-------------------------- Validation Functions ---------------------------------#
 def validate_date_format(date, date_format):
     try:
         datetime.strptime(date, date_format)
@@ -47,7 +34,6 @@ def validate_date_range(date, date_format, data):
    
 
 #-------------------------- Monthly Return Series ---------------------------------#
-
 class MonthlyReturnSeries():
     def __init__(self, data, reporting_date, since_inception_date):
         self.fund_data =  pd.read_csv(monthly_data_path)  #data
@@ -57,13 +43,13 @@ class MonthlyReturnSeries():
         self.since_inception_date = pd.to_datetime(since_inception_date, format=self.date_format )
         self.fund_data.set_index('Date', inplace=True)
         
-        #mask
+        # mask the data for the given periods
         self.one_year_period = self.check_period(self.reporting_date - pd.DateOffset(months=11), self.reporting_date)
         self.three_year_period = self.check_period(self.reporting_date - pd.DateOffset(months=35), self.reporting_date)
         self.five_year_period = self.check_period(self.reporting_date - pd.DateOffset(months=59), self.reporting_date)
         self.ten_year_period = self.check_period(self.reporting_date - pd.DateOffset(months=119), self.reporting_date)
         self.since_inception_period = self.check_period(self.since_inception_date, self.reporting_date)
-        ### AMENDED
+        ### CODE WORKING
 
         # Calculate the period for the since_inception_performance
         start_date = Date(self.since_inception_date.day, self.since_inception_date.month, self.since_inception_date.year)
@@ -72,6 +58,7 @@ class MonthlyReturnSeries():
         self.periods = {0: 1, 1: 3, 2: 5, 3: 10, 4: since_inception_period}  # The time periods for each performance metric
         self.period_names = {0: '1 year', 1: '3 year', 2: '5 year', 3: '10 year', 4: 'Since Inception'}
 
+    # check if the data is available for the given period in #mask
     def check_period(self, start_date, end_date):
         period = self.fund_data.loc[(self.fund_data.index >= start_date) & (self.fund_data.index <= end_date)]
         expected_months = pd.date_range(start=start_date, end=end_date, freq='ME').shape[0]
@@ -79,8 +66,7 @@ class MonthlyReturnSeries():
             return period
         else:
             return None
-        # tested and working
-        ### AMENDED
+        ### CODE WORKING
 
     def calculate_cumulative_performance(self):
         def calculate_performance(period):
@@ -102,8 +88,7 @@ class MonthlyReturnSeries():
 
         performance = performance.rename(index=self.period_names)
         return performance
-        # tested and working
-        ### AMENDED
+        ### CODE WORKING
 
     def calculate_annualized_performance(self):
         def annualized_return(r, t):
@@ -114,7 +99,7 @@ class MonthlyReturnSeries():
         reverse_period_names = {v: k for k, v in self.period_names.items()}     # Create a reverse mapping dictionary
         annualized_performance = cumulative_performance.apply(lambda r: annualized_return(r, self.periods[reverse_period_names[r.name]]), axis=1)
         return annualized_performance
-        # tested and working
+        ### CODE WORKING
 
     def calculate_annualized_volatility(self):
         def calculate_volatility(period):
@@ -138,8 +123,7 @@ class MonthlyReturnSeries():
                                 pd.Series(since_inception_volatility, name='Since Inception')], axis=1).T
         volatility = volatility.rename(index=self.period_names)
         return volatility
-        ### AMENDED
-        # tested and working
+        ### CODE WORKING
 
     def calculate_calendar_performance(self):
         yearly_data = self.fund_data.resample('YE')   
@@ -155,7 +139,7 @@ class MonthlyReturnSeries():
         performance_df.index = dates_list
         performance_df = performance_df.sort_index(ascending=False).head(5)
         return performance_df
-        # tested and working
+        ### CODE WORKING
 
 #----------------------------- Daily Price Series Class --------------------------------------------#
 class DailyPriceSeries():
@@ -196,8 +180,7 @@ class DailyPriceSeries():
         performance = pd.concat([one_year_performance, three_year_performance, five_year_performance, ten_year_performance,since_inception_performance], axis=1).T
         performance = performance.rename(index=self.period_names)
         return performance
-        #seems to be working
-        ### AMENDED
+        ###CODE WORKING
 
     
     def calculate_annualized_performance(self):
@@ -209,27 +192,49 @@ class DailyPriceSeries():
         reverse_period_names = {v: k for k, v in self.period_names.items()}      # Create a reverse mapping dictionary
         annualized_performance = cumulative_performance.apply(lambda r: annualized_return(r, self.periods[reverse_period_names[r.name]]), axis=1)
         return annualized_performance
-        # tested and working #seems to be working
+        ### CODE WORKING
 
 
-    def calculate_annualized_volatility(self): 
-        volatility_fund_data = pd.read_csv(daily_data_path)  #data
-        volatility_fund_data['Date'] = pd.to_datetime(volatility_fund_data['Date'], format=self.date_format )
-        volatility_fund_data.set_index('Date', inplace=True)
-        volatility_fund_data = volatility_fund_data.ffill()  # Forward fill any missing values
-        returns = volatility_fund_data.pct_change()  
+    def calculate_volatility(self, period):
+        if period is None or period.empty:
+            return None
+        return period.std(ddof=0) * np.sqrt(252)
 
+    def get_period(self, data, start_date, end_date):
+        if start_date < data.index[0]:
+            return None
+        actual_start_date = data.index.asof(start_date)
+        return data.loc[actual_start_date:end_date]
 
-        one_year_volatility = returns.loc[self.reporting_date - relativedelta(years=1):self.reporting_date].std() * np.sqrt(252)
-        three_year_volatility = returns.loc[self.reporting_date - relativedelta(years=3):self.reporting_date].std() * np.sqrt(252)
-        five_year_volatility = returns.loc[self.reporting_date - relativedelta(years=5):self.reporting_date].std() * np.sqrt(252)
-        ten_year_volatility = returns.loc[self.reporting_date - relativedelta(years=10):self.reporting_date].std() * np.sqrt(252)
-        since_inception_volatility = returns.loc[self.since_inception_date:self.reporting_date].std() * np.sqrt(252)
-        volatility = pd.concat([one_year_volatility, three_year_volatility, five_year_volatility, ten_year_volatility, since_inception_volatility], axis=1).T
+    def calculate_volatility_for_periods(self):
+        # Reload the data
+        self.fund_data = pd.read_csv(daily_data_path)
+        self.fund_data['Date'] = pd.to_datetime(self.fund_data['Date'], format=self.date_format)
+        self.fund_data.set_index('Date', inplace=True)
+
+        self.fund_data = self.fund_data.ffill()
+        returns = self.fund_data.pct_change()
+        # Get periods
+        one_year_period = self.get_period(returns, self.reporting_date - pd.DateOffset(years=1, days=-1), self.reporting_date)
+        three_year_period = self.get_period(returns, self.reporting_date - pd.DateOffset(years=3, days=-1), self.reporting_date)
+        five_year_period = self.get_period(returns, self.reporting_date - pd.DateOffset(years=5, days=-1), self.reporting_date)
+        ten_year_period = self.get_period(returns, self.reporting_date - pd.DateOffset(years=10, days=-1), self.reporting_date)
+        since_inception_period = self.get_period(returns, self.since_inception_date, self.reporting_date)
+
+        one_year_volatility = self.calculate_volatility(one_year_period)
+        three_year_volatility = self.calculate_volatility(three_year_period)
+        five_year_volatility = self.calculate_volatility(five_year_period)
+        ten_year_volatility = self.calculate_volatility(ten_year_period)
+        since_inception_volatility = self.calculate_volatility(since_inception_period)
+
+        volatility = pd.concat([pd.Series(one_year_volatility, name='1 year'),
+                                pd.Series(three_year_volatility, name='3 year'),
+                                pd.Series(five_year_volatility, name='5 year'),
+                                pd.Series(ten_year_volatility, name='10 year'),
+                                pd.Series(since_inception_volatility, name='Since Inception')], axis=1).T
         volatility = volatility.rename(index=self.period_names)
         return volatility
-        ### AMENDED
-        #in progress
+        ### CODE WORKING
 
 
     def calculate_calendar_performance(self):
@@ -242,7 +247,7 @@ class DailyPriceSeries():
         yearly_performance = yearly_performance.rename(index=lambda x: x.year)
         yearly_performance = yearly_performance.sort_index(ascending=False).head(5)
         return yearly_performance
-
+        ### CODE WORKING
 
 #---------------------------------- Validation --------------------------------#
 
@@ -265,8 +270,7 @@ print()
 print(annualized_performance)
 print()
 
-annualized_volatility = performance_daily.calculate_annualized_volatility()
-#annualized_volatility = annualized_volatility.reset_index()
+annualized_volatility = performance_daily.calculate_volatility_for_periods()
 annualized_volatility = annualized_volatility.map(lambda x: "{:.2%}".format(x))
 print()
 print('Daily Series -> Annualized Volatility')
@@ -282,19 +286,6 @@ print()
 print(calendar_year)
 print()
 
-#----------------------------- Validation --------------------------------------#
-
-if since_inception_date not in performance_daily.fund_data.index:
-    print()
-    print('Daily Series-> Since inception date is not in the data')
-fund_data = performance_daily.fund_data.index
-data = performance_daily.fund_data
-
-if reporting_date not in fund_data:
-    print()
-    print('Daily Series -> Reporting date is not in the data')
-
-# print(data.tail(300))
 
 
 #------------------------------ Monthly Return Series ---------------------------#
@@ -333,21 +324,7 @@ print()
 print(calendar_year)
 print()
 
-#----------------------------- Validation --------------------------------------#
 
-# Check if the Since Inception Date is in the data
-since_inception_date_str = performance_monthly.since_inception_date.strftime('%d/%m/%Y')
-data_index_str = performance_monthly.fund_data.index.strftime('%d/%m/%Y')
-if since_inception_date_str not in data_index_str:
-    print()
-    print('Monthly Series -> Since inception date is not in the data')
-
-
-# Check if the Reporting Date is in the data
-reporting_date_str = performance_monthly.reporting_date.strftime('%d/%m/%Y')
-if reporting_date_str not in data_index_str:
-    print()
-    print('Monthly Series -> Reporting date is not in the data')
 
 
 

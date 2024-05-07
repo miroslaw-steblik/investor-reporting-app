@@ -104,8 +104,6 @@ class MonthlyReturnSeries():
             return period.std(ddof=0) * np.sqrt(12)
 
         volatility_fund_data = data
-        # volatility_fund_data.index = pd.to_datetime(volatility_fund_data.index, format=self.date_format )
-        # volatility_fund_data.set_index('Date', inplace=True)
         volatility_fund_data = volatility_fund_data.resample('ME').last()
         one_year_volatility = calculate_volatility(self.one_year_period)
         three_year_volatility = calculate_volatility(self.three_year_period)
@@ -187,19 +185,45 @@ class DailyPriceSeries():
         return annualized_performance
         ### COMPLETED
 
-    def calculate_annualized_volatility(self): 
-        volatility_fund_data = data
-        volatility_fund_data = volatility_fund_data.ffill()  # Forward fill any missing values
-        returns = volatility_fund_data.pct_change()  
-        one_year_volatility = returns.loc[self.reporting_date - relativedelta(years=1):self.reporting_date].std() * np.sqrt(252)
-        three_year_volatility = returns.loc[self.reporting_date - relativedelta(years=3):self.reporting_date].std() * np.sqrt(252)
-        five_year_volatility = returns.loc[self.reporting_date - relativedelta(years=5):self.reporting_date].std() * np.sqrt(252)
-        ten_year_volatility = returns.loc[self.reporting_date - relativedelta(years=10):self.reporting_date].std() * np.sqrt(252)
-        since_inception_volatility = returns.loc[self.since_inception_date:self.reporting_date].std() * np.sqrt(252)
-        volatility = pd.concat([one_year_volatility, three_year_volatility, five_year_volatility, ten_year_volatility, since_inception_volatility], axis=1).T
+
+    def calculate_volatility(self, period):
+        if period is None or period.empty:
+            return None
+        return period.std(ddof=0) * np.sqrt(252)
+
+    def get_period(self, data, start_date, end_date):
+        if start_date < data.index[0]:
+            return None
+        actual_start_date = data.index.asof(start_date)
+        return data.loc[actual_start_date:end_date]
+
+    def calculate_annualized_volatility(self):
+        # Reload the data
+        self.fund_data = data
+        self.fund_data = self.fund_data.ffill()
+        returns = self.fund_data.pct_change()
+        # Get periods
+        one_year_period = self.get_period(returns, self.reporting_date - pd.DateOffset(years=1, days=-1), self.reporting_date)
+        three_year_period = self.get_period(returns, self.reporting_date - pd.DateOffset(years=3, days=-1), self.reporting_date)
+        five_year_period = self.get_period(returns, self.reporting_date - pd.DateOffset(years=5, days=-1), self.reporting_date)
+        ten_year_period = self.get_period(returns, self.reporting_date - pd.DateOffset(years=10, days=-1), self.reporting_date)
+        since_inception_period = self.get_period(returns, self.since_inception_date, self.reporting_date)
+
+        one_year_volatility = self.calculate_volatility(one_year_period)
+        three_year_volatility = self.calculate_volatility(three_year_period)
+        five_year_volatility = self.calculate_volatility(five_year_period)
+        ten_year_volatility = self.calculate_volatility(ten_year_period)
+        since_inception_volatility = self.calculate_volatility(since_inception_period)
+
+        volatility = pd.concat([pd.Series(one_year_volatility, name='1 year'),
+                                pd.Series(three_year_volatility, name='3 year'),
+                                pd.Series(five_year_volatility, name='5 year'),
+                                pd.Series(ten_year_volatility, name='10 year'),
+                                pd.Series(since_inception_volatility, name='Since Inception')], axis=1).T
         volatility = volatility.rename(index=self.period_names)
         return volatility
-        ### NEEDS TESTING
+        ### COMPLETED
+
         
     def calculate_calendar_performance(self):
         monthly_data = self.fund_data.resample('ME').last()
