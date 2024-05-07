@@ -11,7 +11,6 @@ import plotly.graph_objects as go
 
 
 #------------------------------- VALIDATION FUNCTIONS ----------------------------------------------#
-    
 def validate_reporting_date(reporting_date, since_inception_date):
     if reporting_date < since_inception_date:
         return True             # error occurs
@@ -33,8 +32,7 @@ def validate_date_existance(date, date_format, data):
         return True
 
 
-#----------------------------- Monthly Return Series Class -----------------------------------------#
-
+#----------------------------- MONTHLY RETURN CLASS ------------------------------------------------#
 class MonthlyReturnSeries():
     def __init__(self, data, reporting_date, since_inception_date):
         self.fund_data = data
@@ -45,11 +43,12 @@ class MonthlyReturnSeries():
         self.fund_data.set_index('Date', inplace=True)
         
         #mask
-        self.one_year_period = self.fund_data.loc[(self.fund_data.index > (self.reporting_date - pd.DateOffset(months=12))) & (self.fund_data.index <= self.reporting_date)] # 1 year period mask
-        self.three_year_period = self.fund_data.loc[(self.fund_data.index > (self.reporting_date - pd.DateOffset(months=36))) & (self.fund_data.index <= self.reporting_date)] # 3 years period mask
-        self.five_year_period = self.fund_data.loc[(self.fund_data.index > (self.reporting_date - pd.DateOffset(months=60))) & (self.fund_data.index <= self.reporting_date)]# 5 years period mask
-        self.ten_year_period = self.fund_data.loc[(self.fund_data.index > (self.reporting_date - pd.DateOffset(months=120))) & (self.fund_data.index <= self.reporting_date)]# 10 years period mask
-        self.since_inception_period = self.fund_data.loc[(self.fund_data.index >= self.since_inception_date) & (self.fund_data.index <= self.reporting_date)] # Since inception period mask
+        self.one_year_period = self.check_period(self.reporting_date - pd.DateOffset(months=11), self.reporting_date)
+        self.three_year_period = self.check_period(self.reporting_date - pd.DateOffset(months=35), self.reporting_date)
+        self.five_year_period = self.check_period(self.reporting_date - pd.DateOffset(months=59), self.reporting_date)
+        self.ten_year_period = self.check_period(self.reporting_date - pd.DateOffset(months=119), self.reporting_date)
+        self.since_inception_period = self.check_period(self.since_inception_date, self.reporting_date)
+        ### COMPLETED
 
         # Calculate the period for the since_inception_performance
         start_date = Date(self.since_inception_date.day, self.since_inception_date.month, self.since_inception_date.year)
@@ -58,19 +57,34 @@ class MonthlyReturnSeries():
         self.periods = {0: 1, 1: 3, 2: 5, 3: 10, 4: since_inception_period}  # The time periods for each performance metric
         self.period_names = {0: '1 year', 1: '3 year', 2: '5 year', 3: '10 year', 4: 'Since Inception'}
 
+    def check_period(self, start_date, end_date):
+        period = self.fund_data.loc[(self.fund_data.index >= start_date) & (self.fund_data.index <= end_date)]
+        expected_months = pd.date_range(start=start_date, end=end_date, freq='ME').shape[0]
+        if period.shape[0] == expected_months:
+            return period
+        else:
+            return None
+        ### COMPLETED
 
     def calculate_cumulative_performance(self):
-        self.fund_data = self.fund_data.resample('ME').last()
-        one_year_performance = (self.one_year_period   + 1).prod() - 1
-        three_year_performance = (self.three_year_period  + 1).prod() - 1
-        five_year_performance = (self.five_year_period  + 1).prod() - 1
-        ten_year_performance = (self.ten_year_period  + 1).prod() - 1
-        since_inception_performance = (self.since_inception_period  + 1).prod() - 1
-        performance = pd.concat([one_year_performance, three_year_performance, five_year_performance, ten_year_performance, since_inception_performance], axis=1).T
+        def calculate_performance(period):
+            if period is None:
+                return None
+            return (period + 1).prod() - 1
+
+        one_year_performance = calculate_performance(self.one_year_period)
+        three_year_performance = calculate_performance(self.three_year_period)
+        five_year_performance = calculate_performance(self.five_year_period)
+        ten_year_performance = calculate_performance(self.ten_year_period)
+        since_inception_performance = calculate_performance(self.since_inception_period)
+        performance = pd.concat([pd.Series(one_year_performance, name='1 year'),
+                                pd.Series(three_year_performance, name='3 year'),
+                                pd.Series(five_year_performance, name='5 year'),
+                                pd.Series(ten_year_performance, name='10 year'),
+                                pd.Series(since_inception_performance, name='Since Inception')], axis=1).T
         performance = performance.rename(index=self.period_names)
         return performance
-        # tested and working
-
+        ### COMPLETED
 
     def calculate_annualized_performance(self):
         def annualized_return(r, t):
@@ -81,19 +95,31 @@ class MonthlyReturnSeries():
         reverse_period_names = {v: k for k, v in self.period_names.items()}     # Create a reverse mapping dictionary
         annualized_performance = cumulative_performance.apply(lambda r: annualized_return(r, self.periods[reverse_period_names[r.name]]), axis=1)
         return annualized_performance
-        # tested and working
+        ### COMPLETED
 
     def calculate_annualized_volatility(self):
-        self.fund_data = self.fund_data.resample('ME').last()
-        one_year_volatility = self.one_year_period .std(ddof=0) * np.sqrt(12)
-        three_year_volatility = self.three_year_period .std(ddof=0) * np.sqrt(12)
-        five_year_volatility = self.five_year_period .std(ddof=0) * np.sqrt(12)
-        ten_year_volatility = self.ten_year_period .std(ddof=0) * np.sqrt(12)
-        since_inception_volatility = self.since_inception_period .std(ddof=0) * np.sqrt(12)
-        volatility = pd.concat([one_year_volatility, three_year_volatility, five_year_volatility, ten_year_volatility, since_inception_volatility], axis=1).T
+        def calculate_volatility(period):
+            if period is None:
+                return None
+            return period.std(ddof=0) * np.sqrt(12)
+
+        volatility_fund_data = data
+        # volatility_fund_data.index = pd.to_datetime(volatility_fund_data.index, format=self.date_format )
+        # volatility_fund_data.set_index('Date', inplace=True)
+        volatility_fund_data = volatility_fund_data.resample('ME').last()
+        one_year_volatility = calculate_volatility(self.one_year_period)
+        three_year_volatility = calculate_volatility(self.three_year_period)
+        five_year_volatility = calculate_volatility(self.five_year_period)
+        ten_year_volatility = calculate_volatility(self.ten_year_period)
+        since_inception_volatility = calculate_volatility(self.since_inception_period)
+        volatility = pd.concat([pd.Series(one_year_volatility, name='1 year'),
+                                pd.Series(three_year_volatility, name='3 year'),
+                                pd.Series(five_year_volatility, name='5 year'),
+                                pd.Series(ten_year_volatility, name='10 year'),
+                                pd.Series(since_inception_volatility, name='Since Inception')], axis=1).T
         volatility = volatility.rename(index=self.period_names)
         return volatility
-        # tested and working
+        ### COMPLETED
 
     def calculate_calendar_performance(self):
         yearly_data = self.fund_data.resample('YE')   
@@ -109,7 +135,7 @@ class MonthlyReturnSeries():
         performance_df.index = dates_list
         performance_df = performance_df.sort_index(ascending=False).head(5)
         return performance_df
-        # tested and working
+        ### COMPLETED
 
 #----------------------------- Daily Price Series Class --------------------------------------------#
 class DailyPriceSeries():
@@ -128,25 +154,28 @@ class DailyPriceSeries():
         self.periods = {0: 1, 1: 3, 2: 5, 3: 10, 4: since_inception_period}  # The time periods for each performance metric
         self.period_names = {0: '1 year', 1: '3 year', 2: '5 year', 3: '10 year', 4: 'Since Inception'}
 
-
     def calculate_cumulative_performance(self):
-         
-            daily_fund_data = self.fund_data.asfreq('D').ffill()  # Use daily data
-            since_inception_value = daily_fund_data.loc[self.since_inception_date]
-            monthly_fund_data = self.fund_data.resample('ME').last()  # Use month-end data
-            reporting_date_value = monthly_fund_data.loc[self.reporting_date]
+        daily_fund_data = self.fund_data.asfreq('D').ffill()  # Use daily data
+        monthly_fund_data = self.fund_data.resample('ME').last()  # Use month-end data
 
-            since_inception_performance = (reporting_date_value / since_inception_value) - 1
-            one_year_performance = (reporting_date_value / monthly_fund_data.loc[self.reporting_date - relativedelta(years=1)]) -1
-            three_year_performance = (reporting_date_value / monthly_fund_data.loc[self.reporting_date - relativedelta(years=3)]) -1
-            five_year_performance = (reporting_date_value / monthly_fund_data.loc[self.reporting_date - relativedelta(years=5)]) -1
-            ten_year_performance = (reporting_date_value / monthly_fund_data.loc[self.reporting_date - relativedelta(years=10)]) -1 
-            performance = pd.concat([one_year_performance, three_year_performance, five_year_performance, ten_year_performance, since_inception_performance], axis=1).T
-            performance = performance.rename(index=self.period_names)
-            return performance
+        def calculate_performance(end_date, start_date):
+            try:
+                end_value = monthly_fund_data.loc[end_date]
+                start_value = daily_fund_data.loc[start_date]
+                return (end_value / start_value) - 1
+            except KeyError:
+                return None
 
+        since_inception_performance = pd.Series(calculate_performance(self.reporting_date, self.since_inception_date), name='Since Inception')
+        one_year_performance = pd.Series(calculate_performance(self.reporting_date, self.reporting_date - relativedelta(years=1)), name='1 year')
+        three_year_performance = pd.Series(calculate_performance(self.reporting_date, self.reporting_date - relativedelta(years=3)), name='3 year')
+        five_year_performance = pd.Series(calculate_performance(self.reporting_date, self.reporting_date - relativedelta(years=5)), name='5 year')
+        ten_year_performance = pd.Series(calculate_performance(self.reporting_date, self.reporting_date - relativedelta(years=10)), name='10 year')
+        performance = pd.concat([one_year_performance, three_year_performance, five_year_performance, ten_year_performance,since_inception_performance], axis=1).T
+        performance = performance.rename(index=self.period_names)
+        return performance
+        ### COMPLETED
 
-    
     def calculate_annualized_performance(self):
         def annualized_return(r, t):
             return (1 + r) ** (1 / t) - 1
@@ -156,24 +185,22 @@ class DailyPriceSeries():
         reverse_period_names = {v: k for k, v in self.period_names.items()}      # Create a reverse mapping dictionary
         annualized_performance = cumulative_performance.apply(lambda r: annualized_return(r, self.periods[reverse_period_names[r.name]]), axis=1)
         return annualized_performance
-        # tested and working
-
+        ### COMPLETED
 
     def calculate_annualized_volatility(self): 
-        self.fund_data = data
-        self.fund_data = self.fund_data.ffill()  # Forward fill any missing values
-        returns = self.fund_data.pct_change()  
-
-        one_year_volatility = returns.loc[self.reporting_date - pd.DateOffset(years=1,days=-1):self.reporting_date].std(ddof=0) * np.sqrt(252)
-        three_year_volatility = returns.loc[self.reporting_date - pd.DateOffset(years=3, days=-1):self.reporting_date].std(ddof=0) * np.sqrt(252)
-        five_year_volatility = returns.loc[self.reporting_date - pd.DateOffset(years=5,days=-1):self.reporting_date].std(ddof=0) * np.sqrt(252)
-        ten_year_volatility = returns.loc[self.reporting_date - pd.DateOffset(years=10,days=-1):self.reporting_date].std(ddof=0) * np.sqrt(252)
-        since_inception_volatility = returns.loc[self.since_inception_date:self.reporting_date].std(ddof=0) * np.sqrt(252)
+        volatility_fund_data = data
+        volatility_fund_data = volatility_fund_data.ffill()  # Forward fill any missing values
+        returns = volatility_fund_data.pct_change()  
+        one_year_volatility = returns.loc[self.reporting_date - relativedelta(years=1):self.reporting_date].std() * np.sqrt(252)
+        three_year_volatility = returns.loc[self.reporting_date - relativedelta(years=3):self.reporting_date].std() * np.sqrt(252)
+        five_year_volatility = returns.loc[self.reporting_date - relativedelta(years=5):self.reporting_date].std() * np.sqrt(252)
+        ten_year_volatility = returns.loc[self.reporting_date - relativedelta(years=10):self.reporting_date].std() * np.sqrt(252)
+        since_inception_volatility = returns.loc[self.since_inception_date:self.reporting_date].std() * np.sqrt(252)
         volatility = pd.concat([one_year_volatility, three_year_volatility, five_year_volatility, ten_year_volatility, since_inception_volatility], axis=1).T
         volatility = volatility.rename(index=self.period_names)
         return volatility
-
-
+        ### NEEDS TESTING
+        
     def calculate_calendar_performance(self):
         monthly_data = self.fund_data.resample('ME').last()
         years_with_12_months = monthly_data.groupby(monthly_data.index.year).size() == 12
@@ -184,34 +211,27 @@ class DailyPriceSeries():
         yearly_performance = yearly_performance.rename(index=lambda x: x.year)
         yearly_performance = yearly_performance.sort_index(ascending=False).head(5)
         return yearly_performance
-
-
-
+        ### COMPLETED
 
 #------------------------------- PAGE CONFIG -------------------------------------------------------#
-
 def style_table(df, width=1000):
     return (df.style.format("{:.1%}")
             .set_properties(**{'color': 'white'})), width
 
-st.set_page_config(page_title= "Investor Reporting App", 
-                   layout="wide")
+st.set_page_config(page_title= "Investor Reporting App", layout="wide")
 
 #----------------------------------- IMAGES --------------------------------------------------------#
-
 image_list = ['investor_reporting_app/assets/bar_chart_1.png', 
               'investor_reporting_app/assets/line_chart_1.png',
               'investor_reporting_app/assets/bar_chart_3.png',
               'investor_reporting_app/assets/bar_chart_2.png',
               'investor_reporting_app/assets/histogram.png']
 
-
 #----------------------------------- SIDEBAR -------------------------------------------------------#
-
 st.sidebar.title('Menu')
 
 uploaded_file = st.sidebar.file_uploader("Choose a CSV file to analyze", type="csv")
-st.sidebar.markdown("") # Add space
+st.sidebar.markdown("")
 
 if uploaded_file is None:
     st.sidebar.info('Please upload a CSV file to start the analysis.')
@@ -230,7 +250,7 @@ if uploaded_file is None:
     df = pd.DataFrame({
         'Tables': ['Cumulative and annualized performance tables', 'Volatility tables', 'Calendar performance table'],   
         'Charts': ['Price line chart', 'Cumulative performance chart', 'Other']
-    })
+        })
     st.data_editor(df, height=150, width=700, hide_index=True)
 
     st.markdown("""
@@ -243,7 +263,6 @@ if uploaded_file is None:
     st.write('---')
     st.stop()
 
-
 # Radio button to the sidebar
 options = ['Monthly Returns', 'Daily Price Series']
 choice = st.sidebar.radio("Choose an option", options)
@@ -251,18 +270,13 @@ st.sidebar.markdown("")
 reporting_date = st.sidebar.date_input('Reporting Date', pd.to_datetime('31/01/2024', format='%d/%m/%Y')) #remove hardcoding
 since_inception_date = st.sidebar.date_input('Since Inception Date', pd.to_datetime('21/11/2014', format='%d/%m/%Y'))
 
-
 #----------------------------------- CONTAINERS ----------------------------------------------------#
-
-# Create a container for the sub-titles
 sub_title1_cont = st.container()
 sub_title2_cont = st.container()
 
-# Create a row of containers
 row1 = st.columns(2)
 row2 = st.columns(2)
 
-# Create a new container in the first column and add text to it
 first_container = row1[0].container(border=True)
 first_container.text("Cumulative Performance")
 
@@ -281,6 +295,7 @@ if choice == 'Daily Price Series':
 
     sixth_container = st.container(border=True)
     sixth_container.text("Histogram")
+
 #---------------------------------- FIRST CONTAINER ----------------------------#
 def create_cumulative_performance_container(performance):
     data = performance.fund_data.ffill().copy()
@@ -333,8 +348,7 @@ def create_calendar_performance_container(performance):
     calendar_performance = performance.calculate_calendar_performance().copy()
     # Check if 'Date' column exists, if not create it using the DataFrame's index
     if 'Date' not in calendar_performance.columns:
-        calendar_performance['Date'] = calendar_performance.index
-    # Melt the DataFrame    
+        calendar_performance['Date'] = calendar_performance.index  
     calendar_performance_melted = calendar_performance.melt(id_vars='Date', var_name='Instrument', value_name='Performance')
     fig = px.bar(calendar_performance_melted, x='Date', y='Performance', color='Instrument', barmode='group', title='Calendar Performance')
     fig.update_layout(title_text="",legend_title_text='', height=500,width= 650)
@@ -346,15 +360,13 @@ def create_calendar_performance_container(performance):
 #------------------------- FIFTH CONTAINER -------------------------------------#
 def create_price_chart_container(performance):
     data = performance.fund_data.ffill().copy()
-    # Create traces for each instrument
     traces = [go.Scatter(x=data.index, y=data[instrument], name=instrument) for instrument in data.columns]
-    # Create a layout without a dropdown menu
     layout = go.Layout(
         title_text="",
         legend_title_text="",
         height=400,
         width=1400
-    )
+        )
     fig = go.Figure(data=traces, layout=layout)
     fig.update_yaxes(title_text="")
     return fig
@@ -373,38 +385,21 @@ def create_histogram_container(performance):
         max_value = data[instrument].max()
         fig.add_annotation(x=min_value, y=25, text=f'Min: {min_value:.1%}', showarrow=False)
         fig.add_annotation(x=max_value, y=25, text=f'Max: {max_value:.1%}', showarrow=False)
-
         col.plotly_chart(fig)
     return fig
 
-#----------------------------------- PDF BUTTON ----------------------------------------------------#
-#TODO
-# if 'clicked' not in st.session_state:
-#     st.session_state.clicked = False
-
-# def click_button():
-#     st.session_state.clicked = True 
-
-# st.sidebar.button('Save Report as PDF', on_click=click_button)
-
-
-
-
-#----------------------------------- FOOTER --------------------------------------------------------#
-
-st.sidebar.markdown("")
+#----------------------------------------- FOOTER --------------------------------------------------#
 st.sidebar.markdown("")
 st.sidebar.markdown("---")
 st.sidebar.markdown(
     "[![GitHub License](https://img.shields.io/github/license/miroslaw-steblik/investor-reporting-app)]"
     "(https://github.com/miroslaw-steblik/investor-reporting-app)"
-)
-
+    )
 
 #----------------------------------------- MAIN ----------------------------------------------------#
 if uploaded_file is not None:
     data = pd.read_csv(uploaded_file)
-    if choice == 'Monthly Returns':  # Monthly Returns option is selected
+    if choice == 'Monthly Returns':  
 
         #-------------------------- Monthly Return Series-----------------------#
         performance_monthly = MonthlyReturnSeries(
@@ -426,17 +421,15 @@ if uploaded_file is not None:
             st.error('Since Inception date does not exist. Please choose different date.')
             st.stop()
 
-            
+
         with sub_title1_cont:
             st.header(':orange[_Monthly Returns_]')
-
 
         with first_container:
             fig, data = create_cumulative_performance_container(performance_monthly)
             st.plotly_chart(fig)
             cumulative_performance = performance_monthly.calculate_cumulative_performance()
             st.dataframe(*style_table(cumulative_performance))
-
 
         with second_container:
             fig, annualized_performance = create_annualized_performance_container(performance_monthly)
@@ -448,7 +441,6 @@ if uploaded_file is not None:
             st.plotly_chart(fig)
             st.dataframe(*style_table(annualized_volatility))
 
-
         with fourth_container:
             fig, calendar_performance = create_calendar_performance_container(performance_monthly)
             st.plotly_chart(fig)
@@ -456,7 +448,6 @@ if uploaded_file is not None:
             calendar_performance.index = calendar_performance.index.astype(int).astype(str)
             st.dataframe(*style_table(calendar_performance))
         
-
         
     else:
         #-------------------------- Daily Price Series -------------------------#
@@ -481,7 +472,6 @@ if uploaded_file is not None:
 
         with sub_title2_cont:
             st.header(':orange[_Daily Price Series_]')
-        
 
         with first_container:
             fig, data = create_cumulative_performance_container(performance_daily)
@@ -489,18 +479,15 @@ if uploaded_file is not None:
             cumulative_performance = performance_daily.calculate_cumulative_performance()
             st.dataframe(*style_table(cumulative_performance))
 
-
         with second_container:
             fig, annualized_performance = create_annualized_performance_container(performance_daily)
             st.plotly_chart(fig)
             st.dataframe(*style_table(annualized_performance))
 
-
         with third_container:
             fig, annualized_volatility = create_annualied_volatility_container(performance_daily)
             st.plotly_chart(fig)
             st.dataframe(*style_table(annualized_volatility))
-
 
         with fourth_container:
             fig, calendar_performance = create_calendar_performance_container(performance_daily)
@@ -508,7 +495,6 @@ if uploaded_file is not None:
             calendar_performance = calendar_performance.head(5)
             calendar_performance.index = calendar_performance.index.astype(int).astype(str)
             st.dataframe(*style_table(calendar_performance))
-
 
         if choice == 'Daily Price Series':
             with fifth_container:
