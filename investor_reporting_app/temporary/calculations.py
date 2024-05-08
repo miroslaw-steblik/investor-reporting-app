@@ -162,6 +162,8 @@ class DailyPriceSeries():
         self.data_path = data_path
         self.date_format = '%d/%m/%Y'
         self.fund_data = self.load_data()
+
+        
         
         self.reporting_date = self.validate_date(reporting_date, 'reporting_date')
         self.since_inception_date = self.validate_date(since_inception_date, 'since_inception_date')

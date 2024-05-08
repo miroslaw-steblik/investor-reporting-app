@@ -38,25 +38,50 @@ class MonthlyReturnSeries():
     def __init__(self, data, reporting_date, since_inception_date):
         self.fund_data = data
         self.date_format = '%d/%m/%Y'
-        self.fund_data['Date'] = pd.to_datetime(self.fund_data['Date'], format=self.date_format )
-        self.reporting_date = pd.to_datetime(reporting_date, format=self.date_format )
-        self.since_inception_date = pd.to_datetime(since_inception_date, format=self.date_format )
-        self.fund_data.set_index('Date', inplace=True)
-        
-        #mask
-        self.one_year_period = self.check_period(self.reporting_date - pd.DateOffset(months=11), self.reporting_date)
-        self.three_year_period = self.check_period(self.reporting_date - pd.DateOffset(months=35), self.reporting_date)
-        self.five_year_period = self.check_period(self.reporting_date - pd.DateOffset(months=59), self.reporting_date)
-        self.ten_year_period = self.check_period(self.reporting_date - pd.DateOffset(months=119), self.reporting_date)
-        self.since_inception_period = self.check_period(self.since_inception_date, self.reporting_date)
-        ### COMPLETED
+        self.fund_data = self.load_data()
 
+        self.reporting_date = self.validate_date(reporting_date, 'reporting_date')
+        self.since_inception_date = self.validate_date(since_inception_date, 'since_inception_date')
+        if self.since_inception_date > self.reporting_date:
+            raise ValueError('since_inception_date must be earlier than reporting_date')
+
+        
         # Calculate the period for the since_inception_performance
         start_date = Date(self.since_inception_date.day, self.since_inception_date.month, self.since_inception_date.year)
         end_date = Date(self.reporting_date.day, self.reporting_date.month, self.reporting_date.year)
         since_inception_period = Thirty360(Thirty360.European).yearFraction(start_date, end_date)
         self.periods = {0: 1, 1: 3, 2: 5, 3: 10, 4: since_inception_period}  # The time periods for each performance metric
         self.period_names = {0: '1 year', 1: '3 year', 2: '5 year', 3: '10 year', 4: 'Since Inception'}
+
+    def load_data(self):
+        data = self.fund_data
+        data['Date'] = pd.to_datetime(data['Date'], format=self.date_format)
+        data.set_index('Date', inplace=True)
+        return data
+    
+    def validate_date(self, date_str, date_name):
+        try:
+            date = pd.to_datetime(date_str, format='%d/%m/%Y')
+        except ValueError:
+            raise ValueError(f'Invalid date format for {date_name}. Expected format: dd/mm/yyyy')
+        return date
+    
+    @property
+    def one_year_period(self):
+        return self.check_period(self.reporting_date - pd.DateOffset(months=11), self.reporting_date)
+    @property
+    def three_year_period(self):
+        return self.check_period(self.reporting_date - pd.DateOffset(months=35), self.reporting_date)
+    @property
+    def five_year_period(self):
+        return self.check_period(self.reporting_date - pd.DateOffset(months=59), self.reporting_date)
+    @property
+    def ten_year_period(self):
+        return self.check_period(self.reporting_date - pd.DateOffset(months=119), self.reporting_date)
+    @property
+    def since_inception_period(self):
+        return self.check_period(self.since_inception_date, self.reporting_date)
+    
 
     def check_period(self, start_date, end_date):
         period = self.fund_data.loc[(self.fund_data.index >= start_date) & (self.fund_data.index <= end_date)]
@@ -141,17 +166,32 @@ class DailyPriceSeries():
     def __init__(self, data, reporting_date, since_inception_date):
         self.fund_data = data
         self.date_format = '%d/%m/%Y'
-        self.fund_data['Date'] = pd.to_datetime(self.fund_data['Date'], format=self.date_format )
-        self.reporting_date = pd.to_datetime(reporting_date, format=self.date_format )
-        self.since_inception_date = pd.to_datetime(since_inception_date, format=self.date_format )
-        self.fund_data.set_index('Date', inplace=True)
+        self.fund_data = self.load_data()
 
-        # Calculate the period for the since_inception_performance
+        self.reporting_date = self.validate_date(reporting_date, 'reporting_date')
+        self.since_inception_date = self.validate_date(since_inception_date, 'since_inception_date')
+        if self.since_inception_date > self.reporting_date:
+            raise ValueError('since_inception_date must be earlier than reporting_date')
+        
         start_date = Date(self.since_inception_date.day, self.since_inception_date.month, self.since_inception_date.year)
         end_date = Date(self.reporting_date.day, self.reporting_date.month, self.reporting_date.year)
         since_inception_period = Thirty360(Thirty360.European).yearFraction(start_date, end_date)
         self.periods = {0: 1, 1: 3, 2: 5, 3: 10, 4: since_inception_period}  # The time periods for each performance metric
         self.period_names = {0: '1 year', 1: '3 year', 2: '5 year', 3: '10 year', 4: 'Since Inception'}
+
+
+    def load_data(self):
+        data = self.fund_data
+        data['Date'] = pd.to_datetime(data['Date'], format=self.date_format)
+        data.set_index('Date', inplace=True)
+        return data
+    
+    def validate_date(self, date_str, date_name):
+        try:
+            date = pd.to_datetime(date_str, format='%d/%m/%Y')
+        except ValueError:
+            raise ValueError(f'Invalid date format for {date_name}. Expected format: dd/mm/yyyy')
+        return date
 
     def calculate_cumulative_performance(self):
         daily_fund_data = self.fund_data.asfreq('D').ffill()  # Use daily data
@@ -464,8 +504,8 @@ if uploaded_file is not None:
         elif validate_reporting_date(reporting_date, since_inception_date):
             st.error('Reporting date cannot be earlier than inception date.')
             st.stop()
-        elif validate_date_existance(since_inception_date, '%d/%m/%Y', data):
-            st.error('Since Inception date does not exist. Please choose different date.')
+        elif validate_date_existance(since_inception_date, '%d/%m/%Y', data) or validate_date_existance(reporting_date, '%d/%m/%Y', data):
+            st.error('Selected date does not exist. Please choose different date.')
             st.stop()
 
 

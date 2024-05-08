@@ -14,8 +14,6 @@ Interactive dashboard allows you to quickly scan through:
 5. Price line chart
 6. Cumulative performance chart
 
-After succesfull analysis report can be saved in the form of PDF that can be shared with other teams or used in client reports.
-
 
 ## *No more excel sheets, no more manual calculations.*
 
@@ -28,7 +26,6 @@ After succesfull analysis report can be saved in the form of PDF that can be sha
 > [!IMPORTANT] 
 > Date format must be: DD/MM/YYYY. Example of loaded files can be found in [here](https://github.com/miroslaw-steblik/investment-performance-app/tree/main/assets)
 
-> [!TIP]
-> To save to PDF click <there>
+
 
 
