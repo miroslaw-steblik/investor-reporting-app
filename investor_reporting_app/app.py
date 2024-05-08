@@ -8,6 +8,7 @@ import plotly.express as px
 from dateutil.relativedelta import relativedelta
 from QuantLib import Date, Thirty360 # 30/360 is applied to follow the industry standard for calculating the time period between two dates
 import plotly.graph_objects as go
+import colorlover as cl
 
 
 #------------------------------- VALIDATION FUNCTIONS ----------------------------------------------#
@@ -277,14 +278,21 @@ if uploaded_file is None:
         })
     st.data_editor(df, height=150, width=700, hide_index=True)
 
-    st.markdown("""
-                Investment team can upload a CSV file containing the daily price series or monthly returns of the instruments and choose the desired option from the sidebar menu. 
-                
-                App will transform data loaded from the file into ready to read format that can be used for on-the-fly analysis or as a part of client reporting.
 
-                ## *No more excel sheets, no more manual calculations.*
-                """)
+    with st.popover("More Information"):
+        st.markdown("""
+            Investment team can upload a CSV file containing the daily price series or monthly returns of the instruments and choose the desired option from the sidebar menu. 
+            
+            App will transform data loaded from the file into ready to read format that can be used for on-the-fly analysis or as a part of client reporting.
+
+            ## *:blue[No more excel sheets, no more manual calculations]*
+            """)
+
+
     st.write('---')
+
+
+
     st.stop()
 
 # Radio button to the sidebar
@@ -349,7 +357,8 @@ def create_annualized_performance_container(performance):
     annualized_performance_display = annualized_performance.reset_index()
     annualized_performance_display = annualized_performance_display.rename(columns={'index': 'Performance Metric', 'Performance': 'Annualized Performance'})
     annualized_performance_melted = annualized_performance_display.melt(id_vars='Performance Metric', var_name='Instrument', value_name='Annualized Performance')
-    fig = px.bar(annualized_performance_melted, x='Instrument', y='Annualized Performance', color='Performance Metric', barmode='group', title='Annualized Performance')
+    fig = px.bar(annualized_performance_melted, x='Instrument', y='Annualized Performance', 
+                    color='Performance Metric', barmode='group', title='Annualized Performance')
     fig.update_layout(title_text="",legend_title_text='', height=500,width= 650)
     fig.update_yaxes(tickformat=".1%", title_text="")
     fig.update_xaxes(title_text="")
@@ -357,24 +366,38 @@ def create_annualized_performance_container(performance):
 
 #------------------------------- THIRD CONTAINER -------------------------------#
 def create_annualied_volatility_container(performance):
+    color_discrete_map = {'1 year': 'lightblue', '3 year': 'skyblue', '5 year': 'deepskyblue', '10 year': 'dodgerblue', 'Since Inception': 'darkblue'}
+    
     annualized_volatility = performance.calculate_annualized_volatility().copy()
     annualized_volatility_display = annualized_volatility.reset_index()
     annualized_volatility_display = annualized_volatility_display.rename(columns={'index': 'Performance Metric'})
     annualized_volatility_melted = annualized_volatility_display.melt(id_vars='Performance Metric', var_name='Instrument', value_name='Volatility')
-    fig = px.bar(annualized_volatility_melted, x='Instrument', y='Volatility', color='Performance Metric', barmode='group', title='Annualized Volatility')
+    fig = px.bar(annualized_volatility_melted, x='Instrument', y='Volatility', 
+                    color='Performance Metric', barmode='group', title='Annualized Volatility',
+                    color_discrete_map=color_discrete_map)
     fig.update_layout(title_text="",legend_title_text='', height=500,width= 650)
     fig.update_yaxes(tickformat=".1%", title_text="") 
-    fig.update_xaxes(title_text="")       
+    fig.update_xaxes(title_text="") 
+    
     return fig, annualized_volatility
 
 #-------------------------- FOURTH CONTAINER -----------------------------------#
 def create_calendar_performance_container(performance):
+    
     calendar_performance = performance.calculate_calendar_performance().copy()
     # Check if 'Date' column exists, if not create it using the DataFrame's index
     if 'Date' not in calendar_performance.columns:
         calendar_performance['Date'] = calendar_performance.index  
     calendar_performance_melted = calendar_performance.melt(id_vars='Date', var_name='Instrument', value_name='Performance')
-    fig = px.bar(calendar_performance_melted, x='Date', y='Performance', color='Instrument', barmode='group', title='Calendar Performance')
+    
+     # Create a color map
+    bars = sorted(calendar_performance_melted['Instrument'].unique()) #colors per bar
+    colors = cl.scales[str(len(bars))]['qual']['Set1']
+    color_map = {bar: color for bar, color in zip(bars, colors)}
+    
+    fig = px.bar(calendar_performance_melted, x='Date', y='Performance', 
+                 color='Instrument', barmode='group', title='Calendar Performance',
+                 color_discrete_map=color_map)
     fig.update_layout(title_text="",legend_title_text='', height=500,width= 650)
     fig.update_yaxes(tickformat=".1%", title_text="")
     fig.update_xaxes(title_text="")
@@ -527,6 +550,9 @@ if uploaded_file is not None:
           
             with sixth_container:
                 create_histogram_container(performance_daily)
+
+
+
 
                 
 

@@ -7,7 +7,7 @@ from datetime import datetime
 monthly_data_path = '/home/miros/DataOps/testing/data/monthly_returns_less_then_10_years.csv'
 daily_data_path = '/home/miros/DataOps/testing/data/daily_prices_less_then_10_years.csv'
 reporting_date = '30/04/2023'
-since_inception_date = '31/12/2015'
+since_inception_date = '25/09/2015'
 
 
 pd.set_option('display.max_rows', 100) 
@@ -21,9 +21,6 @@ def validate_date_format(date, date_format):
     except ValueError:
         return False
     
-def validate_reporting_date(reporting_date, since_inception_date):
-    if reporting_date < since_inception_date:
-        raise ValueError("Reporting date cannot be earlier than inception date.")
 
 def validate_date_range(date, date_format, data):
     date = pd.to_datetime(date, format=date_format)
@@ -35,28 +32,53 @@ def validate_date_range(date, date_format, data):
 
 #-------------------------- Monthly Return Series ---------------------------------#
 class MonthlyReturnSeries():
-    def __init__(self, data, reporting_date, since_inception_date):
-        self.fund_data =  pd.read_csv(monthly_data_path)  #data
+    def __init__(self, data_path, reporting_date, since_inception_date):
+        self.data_path = data_path
         self.date_format = '%d/%m/%Y'
-        self.fund_data['Date'] = pd.to_datetime(self.fund_data['Date'], format=self.date_format )
-        self.reporting_date = pd.to_datetime(reporting_date, format=self.date_format )
-        self.since_inception_date = pd.to_datetime(since_inception_date, format=self.date_format )
-        self.fund_data.set_index('Date', inplace=True)
+        self.fund_data = self.load_data()
         
-        # mask the data for the given periods
-        self.one_year_period = self.check_period(self.reporting_date - pd.DateOffset(months=11), self.reporting_date)
-        self.three_year_period = self.check_period(self.reporting_date - pd.DateOffset(months=35), self.reporting_date)
-        self.five_year_period = self.check_period(self.reporting_date - pd.DateOffset(months=59), self.reporting_date)
-        self.ten_year_period = self.check_period(self.reporting_date - pd.DateOffset(months=119), self.reporting_date)
-        self.since_inception_period = self.check_period(self.since_inception_date, self.reporting_date)
-        ### CODE WORKING
+        self.reporting_date = self.validate_date(reporting_date, 'reporting_date')
+        self.since_inception_date = self.validate_date(since_inception_date, 'since_inception_date')
+        if self.since_inception_date > self.reporting_date:
+            raise ValueError('since_inception_date must be earlier than reporting_date')
 
         # Calculate the period for the since_inception_performance
         start_date = Date(self.since_inception_date.day, self.since_inception_date.month, self.since_inception_date.year)
         end_date = Date(self.reporting_date.day, self.reporting_date.month, self.reporting_date.year)
         since_inception_period = Thirty360(Thirty360.European).yearFraction(start_date, end_date)
+
         self.periods = {0: 1, 1: 3, 2: 5, 3: 10, 4: since_inception_period}  # The time periods for each performance metric
         self.period_names = {0: '1 year', 1: '3 year', 2: '5 year', 3: '10 year', 4: 'Since Inception'}
+
+    def load_data(self):
+        data = pd.read_csv(monthly_data_path)
+        data['Date'] = pd.to_datetime(data['Date'], format=self.date_format)
+        data.set_index('Date', inplace=True)
+        return data
+    
+    def validate_date(self, date_str, date_name):
+        try:
+            date = pd.to_datetime(date_str, format='%d/%m/%Y')
+        except ValueError:
+            raise ValueError(f'Invalid date format for {date_name}. Expected format: dd/mm/yyyy')
+        return date
+
+    @property
+    def one_year_period(self):
+        return self.check_period(self.reporting_date - pd.DateOffset(months=11), self.reporting_date)
+    @property
+    def three_year_period(self):
+        return self.check_period(self.reporting_date - pd.DateOffset(months=35), self.reporting_date)
+    @property
+    def five_year_period(self):
+        return self.check_period(self.reporting_date - pd.DateOffset(months=59), self.reporting_date)
+    @property
+    def ten_year_period(self):
+        return self.check_period(self.reporting_date - pd.DateOffset(months=119), self.reporting_date)
+    @property
+    def since_inception_period(self):
+        return self.check_period(self.since_inception_date, self.reporting_date)
+
 
     # check if the data is available for the given period in #mask
     def check_period(self, start_date, end_date):
@@ -126,38 +148,46 @@ class MonthlyReturnSeries():
         ### CODE WORKING
 
     def calculate_calendar_performance(self):
-        yearly_data = self.fund_data.resample('YE')   
-        performance_list = []
-        dates_list = []
-        for year, data in yearly_data:
-            if len(data) ==12:  # Check if the year has 12 months of data
-                calculate_performance = (data + 1).prod() - 1
-                performance_list.append(calculate_performance)
-                dates_list.append(year.year)
-        performance_df = pd.concat(performance_list, axis=1).T  # Transpose the DataFrame
-        performance_df.columns = self.fund_data.columns
-        performance_df.index = dates_list
-        performance_df = performance_df.sort_index(ascending=False).head(5)
-        return performance_df
+        yearly_data = self.fund_data.resample('YE')
+        performance_list = [(data + 1).prod() - 1 for year, data in yearly_data if len(data) == 12]
+        dates_list = [year.year for year, data in yearly_data if len(data) == 12]
+        performance_df = pd.DataFrame(performance_list, index=dates_list, columns=self.fund_data.columns)
+        performance_df.sort_index(ascending=False, inplace=True)
+        return performance_df.head(5)
         ### CODE WORKING
 
 #----------------------------- Daily Price Series Class --------------------------------------------#
 class DailyPriceSeries():
-    def __init__(self, data, reporting_date, since_inception_date):
-        self.fund_data = pd.read_csv(daily_data_path)  #data
+    def __init__(self, data_path, reporting_date, since_inception_date):
+        self.data_path = data_path
         self.date_format = '%d/%m/%Y'
-        self.fund_data['Date'] = pd.to_datetime(self.fund_data['Date'], format=self.date_format )
-        self.reporting_date = pd.to_datetime(reporting_date, format=self.date_format )
-        self.since_inception_date = pd.to_datetime(since_inception_date, format=self.date_format )
-        self.fund_data.set_index('Date', inplace=True)
+        self.fund_data = self.load_data()
+        
+        self.reporting_date = self.validate_date(reporting_date, 'reporting_date')
+        self.since_inception_date = self.validate_date(since_inception_date, 'since_inception_date')
+        if self.since_inception_date > self.reporting_date:
+            raise ValueError('since_inception_date must be earlier than reporting_date')        
 
         # Calculate the period for the since_inception_performance
         start_date = Date(self.since_inception_date.day, self.since_inception_date.month, self.since_inception_date.year)
         end_date = Date(self.reporting_date.day, self.reporting_date.month, self.reporting_date.year)
         since_inception_period = Thirty360(Thirty360.European).yearFraction(start_date, end_date)
+        
         self.periods = {0: 1, 1: 3, 2: 5, 3: 10, 4: since_inception_period}  # The time periods for each performance metric
         self.period_names = {0: '1 year', 1: '3 year', 2: '5 year', 3: '10 year', 4: 'Since Inception'}
 
+    def load_data(self):
+        data = pd.read_csv(daily_data_path)
+        data['Date'] = pd.to_datetime(data['Date'], format=self.date_format)
+        data.set_index('Date', inplace=True)
+        return data
+
+    def validate_date(self, date_str, date_name):
+        try:
+            date = pd.to_datetime(date_str, format='%d/%m/%Y')
+        except ValueError:
+            raise ValueError(f'Invalid date format for {date_name}. Expected format: dd/mm/yyyy')
+        return date
 
     def calculate_cumulative_performance(self):
         daily_fund_data = self.fund_data.asfreq('D').ffill()  # Use daily data
@@ -237,17 +267,22 @@ class DailyPriceSeries():
         ### CODE WORKING
 
 
+
     def calculate_calendar_performance(self):
         monthly_data = self.fund_data.resample('ME').last()
         years_with_12_months = monthly_data.groupby(monthly_data.index.year).size() == 12
         valid_years = years_with_12_months[years_with_12_months].index
         valid_data = self.fund_data[self.fund_data.index.year.isin(valid_years)]  # Filter the data by the valid years
-        yearly_data = valid_data.resample('YE').last()
-        yearly_performance = yearly_data.pct_change().dropna()
+        yearly_performance = (valid_data
+                            .resample('YE')
+                            .last()
+                            .pct_change()
+                            .dropna())
         yearly_performance = yearly_performance.rename(index=lambda x: x.year)
-        yearly_performance = yearly_performance.sort_index(ascending=False).head(5)
-        return yearly_performance
+        yearly_performance = yearly_performance.sort_index(ascending=False)
+        return yearly_performance.head(5)
         ### CODE WORKING
+
 
 #---------------------------------- Validation --------------------------------#
 
