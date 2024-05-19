@@ -1,11 +1,12 @@
 
-""" MIT License, Copyright (C) 2024, Miroslaw Steblik """
+""" MIT License Copyright (C) 2024 Miroslaw Steblik """
 
 import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import colorlover as cl
+
 from investor_reporting_app.calculations import MonthlyReturnSeries, DailyPriceSeries
 from investor_reporting_app.utils import is_eom, validate_date_range, validate_reporting_date, validate_date_existance
 
