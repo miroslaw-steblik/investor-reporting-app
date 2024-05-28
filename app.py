@@ -11,7 +11,6 @@ from investor_reporting_app.calculations import MonthlyReturnSeries, DailyPriceS
 from investor_reporting_app.utils import is_eom, validate_date_range, validate_reporting_date, validate_date_existance
 
 
-
 #------------------------------- PAGE CONFIG -------------------------------------------------------#
 def style_table(df, precision, width=1000):
     return (df.style.format("{:." + str(precision) + "%}")
@@ -33,7 +32,9 @@ uploaded_file = st.sidebar.file_uploader("Choose a CSV file to analyze", type="c
 st.sidebar.markdown("")
 
 if uploaded_file is None:
-    st.sidebar.info('Please upload a CSV file to start the analysis.')
+    st.sidebar.info('Please upload a CSV file to start the analysis. \
+                    Example file can be found [here](https://github.com/miroslaw-steblik/investor-reporting-app/blob/main/resources/daily_prices_generic.csv)')
+    
 
 #----------------------------------- INTRO ---------------------------------------------------------#
     st.header('Investor Reporting App')
@@ -68,6 +69,7 @@ if uploaded_file is None:
 
 
     st.stop()
+
 
 #----------------------------------- CHOICE ------------------------------------#
 options = ['Monthly Returns', 'Daily Price Series']
@@ -213,6 +215,7 @@ st.sidebar.markdown(
     "(https://github.com/miroslaw-steblik/investor-reporting-app)"
     )
 
+
 #----------------------------------------- MAIN ----------------------------------------------------#
 if uploaded_file is not None:
     data = pd.read_csv(uploaded_file)
@@ -320,6 +323,9 @@ if uploaded_file is not None:
           
             with sixth_container:
                 create_histogram_container(performance_daily)
+
+
+
 
 
 
